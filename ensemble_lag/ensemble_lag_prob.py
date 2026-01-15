@@ -282,7 +282,7 @@ if __name__ == "__main__":
         ax.plot(ind_elag, roc_auc[:,i], 'k.') 
         # ax.set_xlim(-0.01, 1.01); ax.set_ylim(-0.01, 1.01) 
         ax.set_xlabel('Ensemble Size')
-        ax.set_ylabel('Brier Score')
+        ax.set_ylabel('ROC AUC')
         plt.grid(c='grey', ls='--', alpha=0.3, zorder=1)
         plt.savefig("ROC_AUC_"+repr(qlev[i])+".png", dpi=200, facecolor='w', edgecolor='w', orientation='portrait',
             format='png', bbox_inches='tight', pad_inches=0.1)

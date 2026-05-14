@@ -43,7 +43,8 @@ mlp = MLPClassifier(early_stopping=True, solver='adam',  \
 if __name__ == "__main__":
 
     #User-sensitive
-    opath="/home/ricardo/cimas/analysis/4postproc/output/ml"
+    #opath="/home/ricardo/cimas/analysis/4postproc/output/ml"
+    opath = "/scratch3/AOML/aoml-phod/Ricardo.Campos/data/week2runs"
     # list of netcdf files generated with buildfuzzydataset.py (GEFS, GDAS, and NDBC buoy)
     # ls -d $PWD/*.nc > list.txt &
     wlist=np.atleast_1d(np.loadtxt('../list.txt',dtype=str))

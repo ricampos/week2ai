@@ -128,7 +128,7 @@ def read_gefs(auxltime,fvarname,nenm,mpath,fcdate,fchour):
 
     return fmod, lat, lon, wtime
 
-def read_mm(auxltime,model,mvar,nenm,mpath,fcdate,fchour):
+def read_mm(auxltime,model,fvarname,mvar,nenm,mpath,fcdate,fchour):
     '''
     Read ECMWF and EnvCanada netcdf ensemble forecast files. 
     Downloaded and post-processed by 
@@ -137,16 +137,24 @@ def read_mm(auxltime,model,mvar,nenm,mpath,fcdate,fchour):
     '''
     import netCDF4 as nc
 
+    # variable
+    if fvarname.upper() == "WS10" or fvarname.upper() == "WND" or fvarname.upper() == "U10":
+        auxvarn = 'wind'
+    else
+        auxvarn = 'wave'
+
     # model informed in the .yaml configuration file
     if model=='ECMWF':
         mtag='ECMWF_ENS'
     elif model=='EnvCanada':
-        mtag='GEWPS'
+        if auxvarn == 'wave':
+            mtag='GEWPS'
+        else:
+            mtag='GEPS'
 
     c=0 # loop through the ensemble members
     for enm in range(0,nenm):
-        # fname = mpath+fcdate+fchour+"/"+mtag+"_wave_"+fcdate+fchour+"."+str(enm).zfill(2)+".nc"
-        fname = mpath+mtag+"_wave_"+fcdate+fchour+"."+str(enm).zfill(2)+".nc"
+        fname = mpath+"/"+auxvarn+"/"+fchour+"/"+mtag+"_"+auxvarn+"_"+fcdate+fchour+"."+str(enm).zfill(2)+".nc"
         try:
             f=nc.Dataset(fname)
             if mvar in list(f.variables.keys()):
@@ -374,7 +382,6 @@ def pm_plot(probecdf,wtime,wconfig,mode,spws,plevels,qlev,hplevels,hpcolors,pcol
 
 # ------------------------------------------------------------
 
-
 if __name__ == "__main__":
 
     # Input Arguments -----
@@ -487,7 +494,7 @@ if __name__ == "__main__":
     if model=='GEFS':
         fmod, lat, lon, wtime = read_gefs(auxltime,fvarname,nenm,mpath,fcdate,fchour)
     else:
-        fmod, lat, lon, wtime = read_mm(auxltime,model,fvarname,nenm,mpath,fcdate,fchour)
+        fmod, lat, lon, wtime = read_mm(auxltime,model,fvarname,mvar,nenm,mpath,fcdate,fchour)
 
     # Quick simple quality control
     fmod[fmod>=qqvmax]=np.nan; fmod[fmod<0.]=np.nan
@@ -507,7 +514,7 @@ if __name__ == "__main__":
 
 
     print(" 2. Initial Plots ...")
-    pctl_plot(fmod,auxltime,nenm,lat,lon,pctls,slonmin,slonmax,slatmin,slatmax,spws,outpath,model,fvarname,ltime1,ltime2)
+    pctl_plot(fmod,auxltime,nenm,lat,lon,pctls,slonmin,slonmax,slatmin,slatmax,spws,outpath,model,ftag,fvarname,ltime1,ltime2)
 
     print(" "); print(" 3. Space-Time Cells and Probabilities ...")
     probecdf = stprob(fmod,nmax,nenm,lat,lon,spws,qlev,spctl)
@@ -515,6 +522,6 @@ if __name__ == "__main__":
 
     # MAIN PLOTS
     print(" 4. Probability Maps ...")
-    pm_plot(probecdf,wtime,wconfig,mode,spws,plevels,qlev,hplevels,hpcolors,pcolors,lat,lon,slonmin,slonmax,slatmin,slatmax,fvarname,funits,model,fcycle,outpath,ltime1,ltime2)
+    pm_plot(probecdf,wtime,wconfig,mode,spws,plevels,qlev,hplevels,hpcolors,pcolors,lat,lon,slonmin,slonmax,slatmin,slatmax,fvarname,funits,model,ftag,fcycle,outpath,ltime1,ltime2)
     print(" 4. Probability Plots ... OK"); print(" ")
 

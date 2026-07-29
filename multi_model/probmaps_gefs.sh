@@ -68,7 +68,7 @@ pa="$2"
 # .yaml configuration file containing paths and information for this
 #   shell script as well as for the python code.
 PYCYAML="$3"
-# PYCYAML="/media/ricardo/ssdrmc/analysis/products/probmaps/probmaps_gefs.yaml"
+# PYCYAML="/scratch4/AOML/aoml-phod/Ricardo.Campos/week2_multimodel/probmaps_gefs.yaml"
 
 # Read the YAML as a text file:
 #  Ensemble data path
@@ -84,11 +84,10 @@ MVARS=$(echo "$mvars_line" | awk -F': ' '{gsub(/"/, "", $2); print $2}')
 outpath_line=$(grep 'outpath' "${PYCYAML}")
 OUTPATH=$(echo "$outpath_line" | awk -F': ' '{print $2}')
 
-# Forecast cycle
+# Date / Forecast cycle
 YEAR=`date --date=-$pa' day' '+%Y'`
 MONTH=`date --date=-$pa' day' '+%m'`
 DAY=`date --date=-$pa' day' '+%d'`
-# HOUR="00" # first cycle 00Z
 
 # Check ensemble is complete and ready.
 # If not, it waits for 5 min and then try again (max 12 hours)

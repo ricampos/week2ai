@@ -7,6 +7,7 @@
 #   v1.0  06/09/2023
 #   v1.1  01/04/2024
 #   v2.0  09/15/2025
+#   v2.1  07/29/2026
 #
 # PURPOSE:
 #  Script to generate Probability Maps (Global Hazard Outlooks) of significant
@@ -18,8 +19,8 @@
 #
 # USAGE:
 #  This code expects the ensemble files (GEFS, EC ENS, CMC/EnvCanada) are downloaded,
-#    the path where .grib2 or .nc files are located must be saved in the probmaps_*.yaml
-#    file, variable gefspath
+#    the path dir where the .grib2 or .nc files are located must be saved in 
+#    the probmaps_*.yaml file
 #  The first argument is the forecast cycle (00,06,12,18)
 #  The second argument is time-delay, i.e. how many days backwards in time (1 for yesterday etc)
 #  The third argument is the configuration file probmaps_*.yaml
@@ -30,23 +31,25 @@
 #    is configured, there is no need to change in the daily basis, unless
 #    you want to modify the destination path or any other configuration.
 #  Before running the python script, python must be loaded and activated. Please 
-#    customize this part at the end (lines 102 and 103).
+#    customize this part at line 133.
 #
 #  Example:
 #    bash probmaps_gefs.sh 00 0 /media/name/test/probmaps_gefs.yaml
 #
 # OUTPUT:
-#  Figures containing the probability maps, saved in the directory
-#    outpath informed in the probmaps_gefs.yaml file.
+#  Probability Map figures saved in the outpath directory
+#     informed in the probmaps_gefs.yaml file.
 #
 # DEPENDENCIES:
-#  The python code probmaps_gefs.py contains the module dependencies.
+#  The python code probmaps.py contains the module dependencies.
 #
 # AUTHOR and DATE:
 #  06/09/2023: Ricardo M. Campos, first version 
 #  01/04/2024: Ricardo M. Campos, the download of GEFS was removed from here,
 #    which is now download_GEFSwaves.sh
 #  09/15/2025: Ricardo M. Campos, multi-model ensemble (ECMWF and EnvCanada) included.
+#  07/29/2026: Ricardo M. Campos - fixed critical bug: under `set -e`, a
+#   standalone `test -f`. Improve data/size check.
 #
 # PERSON OF CONTACT:
 #  Ricardo M. Campos: ricardo.campos@noaa.gov
@@ -61,7 +64,7 @@ module load cdo
 module load nco
 
 # INPUT ARGUMENT
-# Forecast Cycle (00, 06, 12, 18)
+# Forecast Cycle (00,06,12,18)
 HOUR="$1"
 # Days into the past. pa=1 runs using yesterday's cycle
 pa="$2"
@@ -89,34 +92,45 @@ YEAR=`date --date=-$pa' day' '+%Y'`
 MONTH=`date --date=-$pa' day' '+%m'`
 DAY=`date --date=-$pa' day' '+%d'`
 
+echo " "
+echo " Looking for GEFS cycle ${YEAR}${MONTH}${DAY}${HOUR} ..."
+echo " Expected file: $MDIR/GEFSv12Waves_$YEAR$MONTH$DAY$HOUR/gefs.wave.$YEAR$MONTH$DAY.30.global.0p25.f384.grib2"
+echo " "
 # Check ensemble is complete and ready.
 # If not, it waits for 5 min and then try again (max 12 hours)
 FSIZE=0
 TRIES=1
-while [ "$FSIZE" -lt 1000000 ] && [ "$TRIES" -le 144 ]; do
-
+while [ "$FSIZE" -lt 10000000 ] && [ "$TRIES" -le 144 ]; do
   # wait 5 minutes until next try
   if [ ${TRIES} -gt 5 ]; then
     sleep 300
   fi
-  # Check if the last file (member 30, lead time 384h) is complete
-  test -f $MDIR/GEFSv12Waves_$YEAR$MONTH$DAY$HOUR/gefs.wave.$YEAR$MONTH$DAY.30.global.0p25.f384.grib2
-  TE=$?
+  # Check if the last file is complete. Wave (Hs) is the most important variable
+  # rewritten so a missing file (test -f returns 1) does NOT trigger
+  # `set -e` and silently kill the script
+  if [ -f "$MDIR/GEFSv12Waves_$YEAR$MONTH$DAY$HOUR/gefs.wave.$YEAR$MONTH$DAY.30.global.0p25.f384.grib2" ]; then
+    TE=0
+  else
+    TE=1
+  fi
   if [ ${TE} -eq 1 ]; then
     FSIZE=0
   else
     FSIZE=$(du -sb "$MDIR/GEFSv12Waves_$YEAR$MONTH$DAY$HOUR/gefs.wave.$YEAR$MONTH$DAY.30.global.0p25.f384.grib2" | awk '{print $1}')
   fi
-
+  echo "  Try ${TRIES}/144: file $([ ${TE} -eq 0 ] && echo "found (${FSIZE} bytes)" || echo "not found yet")."
   TRIES=`expr $TRIES + 1`
-
 done
+
+if [ "$FSIZE" -lt 10000000 ]; then
+  echo " "
+  echo " WARNING: gave up after ${TRIES} tries (~12h) - GEFS file never reached expected size."
+  echo " Proceeding anyway, but downstream Python processing may fail or use incomplete data."
+  echo " "
+fi
 
 # Module load python and activate environment when necessary.
 source /home/Ricardo.Campos/python/envs/intelpy_env/bin/activate
-
-rm -rf $MDIR/GEFSv12Waves_$YEAR$MONTH$DAY$HOUR/*.idx
-
 echo "  "
 echo " PYTHON PROCESSING: GLOBAL HAZARDS OUTLOOK - PROBABILITY MAPS, $YEAR$MONTH$DAY$HOUR "
 echo "  "
@@ -125,13 +139,12 @@ for WW3VAR in ${MVARS[*]}; do
   # 7 14 is the time intervall (days) for week 2
   python3 ${PYSCRIPT} ${PYCYAML} $YEAR$MONTH$DAY$HOUR 7 14 ${WW3VAR}
   echo " Probability maps for ${WW3VAR} Ok." 
-
 done
 
 echo "  "
 echo " PYTHON PROCESSING COMPLETE."
-
 # ----
+
 cd ${OUTPATH}
 mkdir -p $YEAR$MONTH$DAY$HOUR
 mkdir -p $YEAR$MONTH$DAY$HOUR/Hs

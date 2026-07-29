@@ -12,21 +12,23 @@ VERSION AND LAST UPDATE:
  v2.0  09/11/2024
  v3.0  08/18/2025
  v3.1  08/22/2025
+ v3.2  07/29/2026
 
 PURPOSE:
  This program generates probability maps based on ensemble forecasts of
-  winds and waves. Currently it is ready to read three options of ensemble
+  winds and waves. Currently it is ready to process three ensemble
   products: NOAA/GEFS, ECMWF, and EnvCanada/CMCE.
  It requires the forecast files to have been previously downloaded. See download_GEFSwaves.sh, 
   download_ECMWF_ENS_wind.sh, download_ECMWF_ENS_wave.sh, download_GEPS_wind.sh, and
   download_GEWPS_wave.sh
+  https://github.com/ricampos/week2ai
   https://github.com/NOAA-EMC/gefswaves_reforecast/tree/main/download_and_plot
  The global hazards outlook (probability map) shows the probability of 
-  certain variable (wind speed or significant wave height) to have at least one value 
+  a variable (wind speed or significant wave height) to have at least one value 
   above certain pre-defined level within the given time range.
  For example, selecting the week2 time range (from day 7 to day 14), it
   calculates the probabilities of encontering at least one instant above
-  qlev (defined in probmaps_gefs.yaml) during this week (for each grid point).
+  qlev (defined in probmaps_*.yaml) during this week (for each grid point).
 
 USAGE:
  The information is passed to the script through 5 input arguments:
@@ -35,17 +37,18 @@ USAGE:
   3) initial day to define the time interval to calculate the statistics;
   4) final day to define the time interval to calculate the statistics;
   5) variable (select only one) to be processed: WS10 or Hs;
- The configuration probmaps_*.yaml contains the fixed information.
+ The configuration file probmaps_*.yaml contains the fixed information.
  This script must be run for each variable (WS10, Hs) separately.
  See the probmaps_*.yaml for more specific information and how to calibrate
   the probabilities and customize the plots.
+ Based on the journal paper https://doi.org/10.1175/WAF-D-24-0154.1
 
  Example (from linux terminal command line):
   python3 probmaps_gefs.py probmaps_gefs_internal.yaml 2023060900 7 14 Hs
   nohup python3 probmaps_gefs.py probmaps_gefs_internal.yaml 2023060900 7 14 Hs >> nohup_probmaps_gefs.out 2>&1 &
 
 OUTPUT:
- png and GML/S-413 format figures (probability maps) saved in the outpath directory informed in
+ Probability maps saved in the outpath directory informed in
  the configuration file probmaps_*.yaml
 
 DEPENDENCIES:
@@ -63,7 +66,9 @@ AUTHOR and DATE:
   the code to be working with any domain (lat/lon intervals)
  08/18/2025: Ricardo M. Campos, in addition to GEFS, two new ensembles (ECMWF and EnvCanada)
   have been added. The code was modularized to facilitate.
- 08/22/2025: Ricardo M. Campos, GML/S-413 figure format included.
+ 08/22/2025: Ricardo M. Campos, KML figure format included.
+ 07/29/2026: Ricardo M. Campos, updated related to multi model ensemble, data reading. And
+  processing both WS10 and Hs.
 
 PERSON OF CONTACT:
  Ricardo M Campos: ricardo.campos@noaa.gov
@@ -140,7 +145,7 @@ def read_mm(auxltime,model,fvarname,mvar,nenm,mpath,fcdate,fchour):
     # variable
     if fvarname.upper() == "WS10" or fvarname.upper() == "WND" or fvarname.upper() == "U10":
         auxvarn = 'wind'
-    else
+    else:
         auxvarn = 'wave'
 
     # model informed in the .yaml configuration file
@@ -152,12 +157,13 @@ def read_mm(auxltime,model,fvarname,mvar,nenm,mpath,fcdate,fchour):
         else:
             mtag='GEPS'
 
+    omvar=mvar
     c=0 # loop through the ensemble members
     for enm in range(0,nenm):
-        fname = mpath+"/"+auxvarn+"/"+fchour+"/"+mtag+"_"+auxvarn+"_"+fcdate+fchour+"."+str(enm).zfill(2)+".nc"
+        fname = mpath+auxvarn+"/"+fchour+"/"+mtag+"_"+auxvarn+"_"+fcdate+fchour+"."+str(enm).zfill(2)+".nc"
         try:
             f=nc.Dataset(fname)
-            if mvar in list(f.variables.keys()):
+            if omvar.split(' ')[0] in list(f.variables.keys()):
 
                 if c==0:
                     ftime = np.array(f.variables['time'][:]).astype('int')
@@ -173,7 +179,7 @@ def read_mm(auxltime,model,fvarname,mvar,nenm,mpath,fcdate,fchour):
                 if fvarname.upper() == "WS10" or fvarname.upper() == "WND" or fvarname.upper() == "U10":
                     # u and v components
                     if c==0:
-                        mvar=np.array(mvar.split(' ')).astype('str')
+                        mvar=np.array(omvar.split(' ')).astype('str')
 
                     if model=='ECMWF':
                         auxu = np.flip(np.array(f.variables[mvar[0]][indt,:,:]), axis=1)
@@ -182,7 +188,7 @@ def read_mm(auxltime,model,fvarname,mvar,nenm,mpath,fcdate,fchour):
                         auxu = np.array(f.variables[mvar[0]][indt,:,:])
                         auxv = np.array(f.variables[mvar[1]][indt,:,:])
 
-                    aux = np.sqrt(auxu**2 + auxv**2); del auxu,auxv
+                    aux = np.sqrt(auxu**2 + auxv**2)[:,0,:,:]; del auxu,auxv
 
                 else:
                     if model=='ECMWF':
@@ -202,6 +208,8 @@ def read_mm(auxltime,model,fvarname,mvar,nenm,mpath,fcdate,fchour):
             sys.exit(" Could not open and read file "+fname)
         else:
             c=c+1
+
+        print(repr(c))
 
     return fmod, lat, lon, wtime
 
@@ -279,9 +287,6 @@ def pctl_plot(fmod,auxltime,nenm,lat,lon,pctls,slonmin,slonmax,slatmin,slatmax,s
             orientation='portrait', format='png',transparent=False, bbox_inches='tight', pad_inches=0.1)
 
         plt.close('all')
-        # convert to GML/S-413 format
-        # with zipfile.ZipFile(figname+".kmz", "w") as kmz:
-        #    kmz.write(figname+".png")
 
         del ax, figname
         print(" 2. Initial Plots. Percentile "+str(pctls[i]).zfill(2)+" ok.")
@@ -372,10 +377,6 @@ def pm_plot(probecdf,wtime,wconfig,mode,spws,plevels,qlev,hplevels,hpcolors,pcol
                 orientation='portrait', format='png',transparent=False, bbox_inches='tight', pad_inches=0.1)
 
         plt.close('all')
-
-        # convert to GML/S-413 format
-        # with zipfile.ZipFile(figname+".kmz", "w") as kmz:
-        #    kmz.write(figname+".png")
 
         del ax, figname
         print("   Plot ... qlev "+repr(qlev[i]))

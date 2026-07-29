@@ -1,7 +1,7 @@
 # Configuration file for probmaps.sh and probmaps.py
 
 # Forecast data path
-mpath: /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF/wave/00
+mpath: /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF
 
 # Python script path and file:
 pyscript: /scratch4/AOML/aoml-phod/Ricardo.Campos/week2_multimodel/probmaps.py
@@ -19,7 +19,7 @@ ftag: MAIN
 model: ECMWF
 
 # Variable names
-mvars: "Hs"
+mvars: "WS10 Hs"
 # Variable names in the forecast file (opening with pygrib)
 mvar_wnd: "10u 10v"
 mvar_hs: "swh"

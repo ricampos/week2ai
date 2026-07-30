@@ -181,14 +181,11 @@ def read_mm(auxltime,model,fvarname,mvar,nenm,mpath,fcdate,fchour):
                     if c==0:
                         mvar=np.array(omvar.split(' ')).astype('str')
 
-                    if model=='ECMWF':
-                        auxu = np.flip(np.array(f.variables[mvar[0]][indt,:,:]), axis=1)
-                        auxv = np.flip(np.array(f.variables[mvar[1]][indt,:,:]), axis=1)
-                    else:
-                        auxu = np.array(f.variables[mvar[0]][indt,:,:])
-                        auxv = np.array(f.variables[mvar[1]][indt,:,:])
-
+                    auxu = np.array(f.variables[mvar[0]][indt,:,:])
+                    auxv = np.array(f.variables[mvar[1]][indt,:,:])
                     aux = np.sqrt(auxu**2 + auxv**2)[:,0,:,:]; del auxu,auxv
+                    if model=='ECMWF':
+                        aux = np.flip(aux,axis=1)
 
                 else:
                     if model=='ECMWF':

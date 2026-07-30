@@ -3,36 +3,279 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Week 2 Multi-Model Ensemble Probabilistic Forecasts (EXPERIMENTAL)</title>
+  <title>NOAA Hera - Week 2 Multi-Model Forecasts</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 30px; background: #f8f9fa; color: #333; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+      margin: 25px; 
+      background: #f8f9fa; 
+      color: #333; 
+    }
+    header { margin-bottom: 20px; }
     h1 { color: #003366; margin-bottom: 5px; }
     p.subtitle { color: #666; font-style: italic; margin-top: 0; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; margin-top: 20px; }
-    .card { background: white; border-radius: 8px; padding: 15px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); text-align: center; }
-    img { max-width: 100%; height: auto; border-radius: 4px; border: 1px solid #ddd; }
-    h2 { border-bottom: 2px solid #003366; padding-bottom: 8px; margin-top: 40px; color: #003366; }
+
+    /* Top-Level Tabs */
+    .top-tab-container {
+      display: flex;
+      border-bottom: 3px solid #003366;
+      margin-bottom: 15px;
+      gap: 8px;
+    }
+    .top-tab-btn {
+      background-color: #dbe2ef;
+      border: none;
+      padding: 12px 24px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: bold;
+      color: #003366;
+      border-radius: 6px 6px 0 0;
+      transition: all 0.2s;
+    }
+    .top-tab-btn:hover { background-color: #cbd5e1; }
+    .top-tab-btn.active {
+      background-color: #003366;
+      color: white;
+    }
+
+    /* Sub-Level Tabs */
+    .sub-tab-container {
+      display: flex;
+      border-bottom: 2px solid #64748b;
+      margin-bottom: 20px;
+      gap: 5px;
+    }
+    .sub-tab-btn {
+      background-color: #f1f5f9;
+      border: 1px solid #cbd5e1;
+      border-bottom: none;
+      padding: 8px 18px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      color: #475569;
+      border-radius: 4px 4px 0 0;
+    }
+    .sub-tab-btn:hover { background-color: #e2e8f0; }
+    .sub-tab-btn.active {
+      background-color: #475569;
+      color: white;
+      border-color: #475569;
+    }
+
+    /* Hide Content Sections */
+    .top-content, .sub-content { display: none; }
+    .top-content.active, .sub-content.active { display: block; }
+
+    /* Model Section Headers */
+    .model-header {
+      color: #003366;
+      border-bottom: 1px dashed #cbd5e1;
+      padding-bottom: 5px;
+      margin-top: 25px;
+      margin-bottom: 15px;
+      font-size: 1.2rem;
+    }
+
+    /* Grid Layout for Figures */
+    .grid { 
+      display: grid; 
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); 
+      gap: 20px; 
+    }
+    .card { 
+      background: white; 
+      border-radius: 8px; 
+      padding: 12px; 
+      box-shadow: 0 2px 5px rgba(0,0,0,0.08); 
+      text-align: center; 
+    }
+    .card h4 {
+      margin: 0 0 10px 0;
+      color: #1e293b;
+      font-size: 0.95rem;
+    }
+    img { 
+      max-width: 100%; 
+      height: auto; 
+      border-radius: 4px; 
+      border: 1px solid #e2e8f0; 
+    }
   </style>
 </head>
 <body>
 
-  <h1>Week 2 Multi-Model Ensemble Probabilistic Forecasts (EXPERIMENTAL)</h1>
-  <p class="subtitle">Latest Week-2 Probability Maps</p>
+  <header>
+    <h1>NOAA Hera Automated Figures</h1>
+    <p class="subtitle">Week-2 Multi-Model Probabilistic Forecasts & Percentiles</p>
+  </header>
 
-  <h2>Significant Wave Height (Hs) in meters </h2>
-  <div class="grid">
-    <div class="card"><h3>GEFS, Hs > 4.0m</h3><img src="figures/Hs/ProbMap_Hs_4.0_fcst07to14_GEFS_MAIN.png" alt="Hs 4.0"></div>
-    <div class="card"><h3>GEFS, Hs > 6.0m</h3><img src="figures/Hs/ProbMap_Hs_6.0_fcst07to14_GEFS_MAIN.png" alt="Hs 6.0"></div>
-    <div class="card"><h3>GEFS, Hs > 9.0m</h3><img src="figures/Hs/ProbMap_Hs_9.0_fcst07to14_GEFS_MAIN.png" alt="Hs 9.0"></div>
-    <div class="card"><h3>GEFS, Hs > 14.0m</h3><img src="figures/Hs/ProbMap_Hs_14.0_fcst07to14_GEFS_MAIN.png" alt="Hs 14.0"></div>
+  <!-- TOP LEVEL TABS: ProbMaps vs Pctl -->
+  <div class="top-tab-container">
+    <button class="top-tab-btn active" onclick="openTopTab(event, 'ProbMaps')">Probability Maps (ProbMaps)</button>
+    <button class="top-tab-btn" onclick="openTopTab(event, 'Pctl')">Percentiles (Pctl)</button>
   </div>
 
-  <h2>10m Wind Speed (WS10) in knots </h2>
-  <div class="grid">
-    <div class="card"><h3>GEFS, WS10 > 34.0 kts</h3><img src="figures/WS10/ProbMap_WS10_34.0_fcst07to14_GEFS_MAIN.png" alt="WS10 34.0"></div>
-    <div class="card"><h3>GEFS, WS10 > 48.0 kts</h3><img src="figures/WS10/ProbMap_WS10_48.0_fcst07to14_GEFS_MAIN.png" alt="WS10 48.0"></div>
-    <div class="card"><h3>GEFS, WS10 > 64.0 kts</h3><img src="figures/WS10/ProbMap_WS10_64.0_fcst07to14_GEFS_MAIN.png" alt="WS10 64.0"></div>
+  <!-- ========================================== -->
+  <!-- TAB 1: PROBMAPS                            -->
+  <!-- ========================================== -->
+  <div id="ProbMaps" class="top-content active">
+    
+    <!-- Sub Tabs: Hs vs WS10 -->
+    <div class="sub-tab-container">
+      <button class="sub-tab-btn active" onclick="openSubTab(event, 'ProbMaps', 'Prob_Hs')">Significant Wave Height (Hs)</button>
+      <button class="sub-tab-btn" onclick="openSubTab(event, 'ProbMaps', 'Prob_WS10')">10m Wind Speed (WS10)</button>
+    </div>
+
+    <!-- ProbMaps -> Hs -->
+    <div id="Prob_Hs" class="sub-content active">
+      <h3 class="model-header">ECMWF</h3>
+      <div class="grid">
+        <div class="card"><h4>Hs > 4.0m</h4><img src="figures/Hs/ProbMap_Hs_4.0_fcst07to14_ECMWF_MAIN.png" alt="Hs 4.0 ECMWF"></div>
+        <div class="card"><h4>Hs > 6.0m</h4><img src="figures/Hs/ProbMap_Hs_6.0_fcst07to14_ECMWF_MAIN.png" alt="Hs 6.0 ECMWF"></div>
+        <div class="card"><h4>Hs > 9.0m</h4><img src="figures/Hs/ProbMap_Hs_9.0_fcst07to14_ECMWF_MAIN.png" alt="Hs 9.0 ECMWF"></div>
+        <div class="card"><h4>Hs > 14.0m</h4><img src="figures/Hs/ProbMap_Hs_14.0_fcst07to14_ECMWF_MAIN.png" alt="Hs 14.0 ECMWF"></div>
+      </div>
+
+      <h3 class="model-header">EnvCanada</h3>
+      <div class="grid">
+        <div class="card"><h4>Hs > 4.0m</h4><img src="figures/Hs/ProbMap_Hs_4.0_fcst07to14_EnvCanada_MAIN.png" alt="Hs 4.0 EnvCanada"></div>
+        <div class="card"><h4>Hs > 6.0m</h4><img src="figures/Hs/ProbMap_Hs_6.0_fcst07to14_EnvCanada_MAIN.png" alt="Hs 6.0 EnvCanada"></div>
+        <div class="card"><h4>Hs > 9.0m</h4><img src="figures/Hs/ProbMap_Hs_9.0_fcst07to14_EnvCanada_MAIN.png" alt="Hs 9.0 EnvCanada"></div>
+        <div class="card"><h4>Hs > 14.0m</h4><img src="figures/Hs/ProbMap_Hs_14.0_fcst07to14_EnvCanada_MAIN.png" alt="Hs 14.0 EnvCanada"></div>
+      </div>
+
+      <h3 class="model-header">GEFS</h3>
+      <div class="grid">
+        <div class="card"><h4>Hs > 4.0m</h4><img src="figures/Hs/ProbMap_Hs_4.0_fcst07to14_GEFS_MAIN.png" alt="Hs 4.0 GEFS"></div>
+        <div class="card"><h4>Hs > 6.0m</h4><img src="figures/Hs/ProbMap_Hs_6.0_fcst07to14_GEFS_MAIN.png" alt="Hs 6.0 GEFS"></div>
+        <div class="card"><h4>Hs > 9.0m</h4><img src="figures/Hs/ProbMap_Hs_9.0_fcst07to14_GEFS_MAIN.png" alt="Hs 9.0 GEFS"></div>
+        <div class="card"><h4>Hs > 14.0m</h4><img src="figures/Hs/ProbMap_Hs_14.0_fcst07to14_GEFS_MAIN.png" alt="Hs 14.0 GEFS"></div>
+      </div>
+    </div>
+
+    <!-- ProbMaps -> WS10 -->
+    <div id="Prob_WS10" class="sub-content">
+      <h3 class="model-header">ECMWF</h3>
+      <div class="grid">
+        <div class="card"><h4>WS10 > 34.0 kts</h4><img src="figures/WS10/ProbMap_WS10_34.0_fcst07to14_ECMWF_MAIN.png" alt="WS10 34.0 ECMWF"></div>
+        <div class="card"><h4>WS10 > 48.0 kts</h4><img src="figures/WS10/ProbMap_WS10_48.0_fcst07to14_ECMWF_MAIN.png" alt="WS10 48.0 ECMWF"></div>
+        <div class="card"><h4>WS10 > 64.0 kts</h4><img src="figures/WS10/ProbMap_WS10_64.0_fcst07to14_ECMWF_MAIN.png" alt="WS10 64.0 ECMWF"></div>
+      </div>
+
+      <h3 class="model-header">EnvCanada</h3>
+      <div class="grid">
+        <div class="card"><h4>WS10 > 34.0 kts</h4><img src="figures/WS10/ProbMap_WS10_34.0_fcst07to14_EnvCanada_MAIN.png" alt="WS10 34.0 EnvCanada"></div>
+        <div class="card"><h4>WS10 > 48.0 kts</h4><img src="figures/WS10/ProbMap_WS10_48.0_fcst07to14_EnvCanada_MAIN.png" alt="WS10 48.0 EnvCanada"></div>
+        <div class="card"><h4>WS10 > 64.0 kts</h4><img src="figures/WS10/ProbMap_WS10_64.0_fcst07to14_EnvCanada_MAIN.png" alt="WS10 64.0 EnvCanada"></div>
+      </div>
+
+      <h3 class="model-header">GEFS</h3>
+      <div class="grid">
+        <div class="card"><h4>WS10 > 34.0 kts</h4><img src="figures/WS10/ProbMap_WS10_34.0_fcst07to14_GEFS_MAIN.png" alt="WS10 34.0 GEFS"></div>
+        <div class="card"><h4>WS10 > 48.0 kts</h4><img src="figures/WS10/ProbMap_WS10_48.0_fcst07to14_GEFS_MAIN.png" alt="WS10 48.0 GEFS"></div>
+        <div class="card"><h4>WS10 > 64.0 kts</h4><img src="figures/WS10/ProbMap_WS10_64.0_fcst07to14_GEFS_MAIN.png" alt="WS10 64.0 GEFS"></div>
+      </div>
+    </div>
+
   </div>
+
+  <!-- ========================================== -->
+  <!-- TAB 2: PERCENTILES (Pctl)                  -->
+  <!-- ========================================== -->
+  <div id="Pctl" class="top-content">
+    
+    <!-- Sub Tabs: Hs vs WS10 -->
+    <div class="sub-tab-container">
+      <button class="sub-tab-btn active" onclick="openSubTab(event, 'Pctl', 'Pctl_Hs')">Significant Wave Height (Hs)</button>
+      <button class="sub-tab-btn" onclick="openSubTab(event, 'Pctl', 'Pctl_WS10')">10m Wind Speed (WS10)</button>
+    </div>
+
+    <!-- Pctl -> Hs -->
+    <div id="Pctl_Hs" class="sub-content active">
+      <h3 class="model-header">ECMWF</h3>
+      <div class="grid">
+        <div class="card"><h4>Pctl 95</h4><img src="figures/Hs/Pctl95_Hs_fcst07to14_ECMWF_MAIN.png" alt="Pctl95 Hs ECMWF"></div>
+        <div class="card"><h4>Pctl 99</h4><img src="figures/Hs/Pctl99_Hs_fcst07to14_ECMWF_MAIN.png" alt="Pctl99 Hs ECMWF"></div>
+      </div>
+
+      <h3 class="model-header">EnvCanada</h3>
+      <div class="grid">
+        <div class="card"><h4>Pctl 95</h4><img src="figures/Hs/Pctl95_Hs_fcst07to14_EnvCanada_MAIN.png" alt="Pctl95 Hs EnvCanada"></div>
+        <div class="card"><h4>Pctl 99</h4><img src="figures/Hs/Pctl99_Hs_fcst07to14_EnvCanada_MAIN.png" alt="Pctl99 Hs EnvCanada"></div>
+      </div>
+
+      <h3 class="model-header">GEFS</h3>
+      <div class="grid">
+        <div class="card"><h4>Pctl 95</h4><img src="figures/Hs/Pctl95_Hs_fcst07to14_GEFS_MAIN.png" alt="Pctl95 Hs GEFS"></div>
+        <div class="card"><h4>Pctl 99</h4><img src="figures/Hs/Pctl99_Hs_fcst07to14_GEFS_MAIN.png" alt="Pctl99 Hs GEFS"></div>
+      </div>
+    </div>
+
+    <!-- Pctl -> WS10 -->
+    <div id="Pctl_WS10" class="sub-content">
+      <h3 class="model-header">ECMWF</h3>
+      <div class="grid">
+        <div class="card"><h4>Pctl 95</h4><img src="figures/WS10/Pctl95_WS10_fcst07to14_ECMWF_MAIN.png" alt="Pctl95 WS10 ECMWF"></div>
+        <div class="card"><h4>Pctl 99</h4><img src="figures/WS10/Pctl99_WS10_fcst07to14_ECMWF_MAIN.png" alt="Pctl99 WS10 ECMWF"></div>
+      </div>
+
+      <h3 class="model-header">EnvCanada</h3>
+      <div class="grid">
+        <div class="card"><h4>Pctl 95</h4><img src="figures/WS10/Pctl95_WS10_fcst07to14_EnvCanada_MAIN.png" alt="Pctl95 WS10 EnvCanada"></div>
+        <div class="card"><h4>Pctl 99</h4><img src="figures/WS10/Pctl99_WS10_fcst07to14_EnvCanada_MAIN.png" alt="Pctl99 WS10 EnvCanada"></div>
+      </div>
+
+      <h3 class="model-header">GEFS</h3>
+      <div class="grid">
+        <div class="card"><h4>Pctl 95</h4><img src="figures/WS10/Pctl95_WS10_fcst07to14_GEFS_MAIN.png" alt="Pctl95 WS10 GEFS"></div>
+        <div class="card"><h4>Pctl 99</h4><img src="figures/WS10/Pctl99_WS10_fcst07to14_GEFS_MAIN.png" alt="Pctl99 WS10 GEFS"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- JavaScript for Nested Tab Switching -->
+  <script>
+    function openTopTab(evt, topTabId) {
+      // Hide all top-level contents
+      const topContents = document.getElementsByClassName("top-content");
+      for (let i = 0; i < topContents.length; i++) {
+        topContents[i].classList.remove("active");
+      }
+
+      // Deactivate all top buttons
+      const topBtns = document.getElementsByClassName("top-tab-btn");
+      for (let i = 0; i < topBtns.length; i++) {
+        topBtns[i].classList.remove("active");
+      }
+
+      // Show selected top content and set button active
+      document.getElementById(topTabId).classList.add("active");
+      evt.currentTarget.classList.add("active");
+    }
+
+    function openSubTab(evt, parentId, subTabId) {
+      const parentEl = document.getElementById(parentId);
+
+      // Hide all sub-contents inside this specific top-tab section
+      const subContents = parentEl.getElementsByClassName("sub-content");
+      for (let i = 0; i < subContents.length; i++) {
+        subContents[i].classList.remove("active");
+      }
+
+      // Deactivate all sub-tab buttons inside this top-tab section
+      const subBtns = parentEl.getElementsByClassName("sub-tab-btn");
+      for (let i = 0; i < subBtns.length; i++) {
+        subBtns[i].classList.remove("active");
+      }
+
+      // Show selected sub-content and set button active
+      document.getElementById(subTabId).classList.add("active");
+      evt.currentTarget.classList.add("active");
+    }
+  </script>
 
 </body>
 </html>

@@ -1,0 +1,48 @@
+# GEFSv12 download op
+00 13 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/GEFS/rdownload_GEFSwave.sh 00 0 > /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/GEFS/cron_log.txt 2>&1
+00 10 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/GEFS/rdownload_GEFSwave.sh 12 1 > /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/GEFS/cron_log.txt 2>&1
+30 11 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/GEFS/rdownload_GEFSwave.sh 18 1 > /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/GEFS/cron_log.txt 2>&1
+# ECMWF download op
+00 15 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF/download_ECMWF_ENS_wind.sh 00 0 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF/wind/00 > /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF/wind/00/cron_log.txt 2>&1
+00 04 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF/download_ECMWF_ENS_wind.sh 12 1 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF/wind/12 > /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF/wind/12/cron_log.txt 2>&1
+00 16 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF/download_ECMWF_ENS_wave.sh 00 0 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF/wave/00 > /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF/wave/00/cron_log.txt 2>&1
+00 12 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF/download_ECMWF_ENS_wave.sh 12 1 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF/wave/12 > /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF/wave/12/cron_log.txt 2>&1
+# check ECMWF
+00 18 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF/download_ECMWF_ENS_wind.sh 00 1 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF/wind/00 > /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF/wind/00/cron_log.txt 2>&1
+00 19 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF/download_ECMWF_ENS_wind.sh 12 2 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF/wind/12 > /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF/wind/12/cron_log.txt 2>&1
+00 20 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF/download_ECMWF_ENS_wave.sh 00 1 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF/wave/00 > /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF/wave/00/cron_log.txt 2>&1
+00 21 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF/download_ECMWF_ENS_wave.sh 12 2 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF/wave/12 > /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/ECMWF/wave/12/cron_log.txt 2>&1
+# EnvCanada download op
+30 15 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/download_GEPS_wind.sh 00 0 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/wind/00 > /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/wind/00/cron_log.txt 2>&1
+45 03 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/download_GEPS_wind.sh 12 1 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/wind/12 > /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/wind/12/cron_log.txt 2>&1
+30 16 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/download_GEWPS_wave.sh 00 0 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/wave/00 > /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/wave/00/cron_log.txt 2>&1
+45 07 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/download_GEWPS_wave.sh 12 1 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/wave/12 > /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/wave/12/cron_log.txt 2>&1
+# check EnvCanada
+00 22 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/download_GEPS_wind.sh 00 1 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/wind/00 > /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/wind/00/cron_log.txt 2>&1
+30 22 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/download_GEPS_wind.sh 12 2 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/wind/12 > /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/wind/12/cron_log.txt 2>&1
+00 23 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/download_GEWPS_wave.sh 00 1 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/wave/00 > /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/wave/00/cron_log.txt 2>&1
+10 23 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/download_GEWPS_wave.sh 12 2 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/wave/12 > /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/wave/12/cron_log.txt 2>&1
+# EnvCanada Great Lakes download op
+30 02 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/GreatLakes/download_CMC_REPS_wind.sh 00 1 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/GreatLakes/wind/00 > /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/GreatLakes/wind/00/cron_log.txt 2>&1
+45 02 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/GreatLakes/download_CMC_REPS_wind.sh 12 1 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/GreatLakes/wind/12 > /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/GreatLakes/wind/12/cron_log.txt 2>&1
+00 03 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/GreatLakes/download_CMC_REWPS_wave.sh 00 1 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/GreatLakes/wave/00 > /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/GreatLakes/wave/00/cron_log.txt 2>&1
+15 03 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/GreatLakes/download_CMC_REWPS_wave.sh 12 1 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/GreatLakes/wave/12 > /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/GreatLakes/wave/12/cron_log.txt 2>&1
+# check EnvCanada Great Lakes
+00 21 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/GreatLakes/download_CMC_REPS_wind.sh 00 1 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/GreatLakes/wind/00 > /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/GreatLakes/wind/00/cron_log.txt 2>&1
+15 21 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/GreatLakes/download_CMC_REPS_wind.sh 12 1 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/GreatLakes/wind/12 > /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/GreatLakes/wind/12/cron_log.txt 2>&1
+30 21 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/GreatLakes/download_CMC_REWPS_wave.sh 00 1 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/GreatLakes/wave/00 > /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/GreatLakes/wave/00/cron_log.txt 2>&1
+45 21 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/GreatLakes/download_CMC_REWPS_wave.sh 12 1 /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/GreatLakes/wave/12 > /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/EnvCanada/GreatLakes/wave/12/cron_log.txt 2>&1
+
+# WEEK2 PROB FORECAST - MULTIMODEL ENSEMBLE
+30 17 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/week2_multimodel/probmaps_envcanada.sh 12 1 /scratch4/AOML/aoml-phod/Ricardo.Campos/week2_multimodel/probmaps_envcanada.yaml > /scratch4/AOML/aoml-phod/Ricardo.Campos/week2_multimodel/cron_log_envcanada.txt 2>&1
+30 18 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/week2_multimodel/probmaps_envcanada.sh 00 0 /scratch4/AOML/aoml-phod/Ricardo.Campos/week2_multimodel/probmaps_envcanada.yaml > /scratch4/AOML/aoml-phod/Ricardo.Campos/week2_multimodel/cron_log_envcanada.txt 2>&1
+00 17 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/week2_multimodel/probmaps_ecmwf.sh 12 1 /scratch4/AOML/aoml-phod/Ricardo.Campos/week2_multimodel/probmaps_ecmwf.yaml > /scratch4/AOML/aoml-phod/Ricardo.Campos/week2_multimodel/cron_log_ecmwf.txt 2>&1
+00 18 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/week2_multimodel/probmaps_ecmwf.sh 00 0 /scratch4/AOML/aoml-phod/Ricardo.Campos/week2_multimodel/probmaps_ecmwf.yaml > /scratch4/AOML/aoml-phod/Ricardo.Campos/week2_multimodel/cron_log_ecmwf.txt 2>&1
+# GEFS multiple cycles
+00 14 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/week2_multimodel/probmaps_gefs.sh 12 1 /scratch4/AOML/aoml-phod/Ricardo.Campos/week2_multimodel/probmaps_gefs.yaml > /scratch4/AOML/aoml-phod/Ricardo.Campos/week2_multimodel/cron_log_gefs.txt 2>&1
+30 14 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/week2_multimodel/probmaps_gefs.sh 18 1 /scratch4/AOML/aoml-phod/Ricardo.Campos/week2_multimodel/probmaps_gefs.yaml > /scratch4/AOML/aoml-phod/Ricardo.Campos/week2_multimodel/cron_log_gefs.txt 2>&1
+00 15 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/week2_multimodel/probmaps_gefs.sh 00 0 /scratch4/AOML/aoml-phod/Ricardo.Campos/week2_multimodel/probmaps_gefs.yaml > /scratch4/AOML/aoml-phod/Ricardo.Campos/week2_multimodel/cron_log_gefs.txt 2>&1
+
+# WEEK2 PROB FORECAST - Validation
+# 40 15 * * * bash /scratch4/AOML/aoml-phod/Ricardo.Campos/week2_sval/probmaps_gefs_valdt.sh /scratch4/AOML/aoml-phod/Ricardo.Campos/week2_sval/probmaps_gefs.yaml > /scratch4/AOML/aoml-phod/Ricardo.Campos/week2_sval/cron_log_gefs_valdt.txt 2>&1
+

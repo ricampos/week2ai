@@ -55,8 +55,6 @@ while [ "$FSIZE" -lt 300000000 ] && [ "$TRIES" -le 144 ]; do
     sleep 300
   fi
   # Check if the last file is complete. Wave (Hs) is the most important variable
-  # rewritten so a missing file (test -f returns 1) does NOT trigger
-  # `set -e` and silently kill the script
   if [ -f "$MDIR/wave/$HOUR/GEWPS_wave_$YEAR$MONTH$DAY$HOUR.20.nc" ]; then
     TE=0
   else

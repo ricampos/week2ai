@@ -1,13 +1,6 @@
 #!/bin/bash
 # bash rdownload_GEFSwave.sh 00 1
 #
-# 07/28/2026: Ricardo M. Campos - added a lock file so a new cron-triggered
-#   run cannot start while a previous one is still going. Without this,
-#   a run stuck retrying stale/404 data could still be alive when the
-#   next day's cron fired, and the two (or more) instances would run
-#   concurrently, interleaving output in cron_log.txt and competing for
-#   bandwidth. Also wrapped the actual download in `timeout` as a backstop
-#   so a run can't linger indefinitely even if something unexpected stalls.
 
 set -euo pipefail
 

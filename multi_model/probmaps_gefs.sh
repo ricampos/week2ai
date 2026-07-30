@@ -106,8 +106,6 @@ while [ "$FSIZE" -lt 10000000 ] && [ "$TRIES" -le 144 ]; do
     sleep 300
   fi
   # Check if the last file is complete. Wave (Hs) is the most important variable
-  # rewritten so a missing file (test -f returns 1) does NOT trigger
-  # `set -e` and silently kill the script
   if [ -f "$MDIR/GEFSv12Waves_$YEAR$MONTH$DAY$HOUR/gefs.wave.$YEAR$MONTH$DAY.30.global.0p25.f384.grib2" ]; then
     TE=0
   else

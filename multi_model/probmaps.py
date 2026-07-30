@@ -372,7 +372,7 @@ def pm_plot(probecdf,wtime,wconfig,mode,spws,plevels,qlev,hplevels,hpcolors,pcol
 
         plt.axes(ax); plt.tight_layout()
         plt.text(-90., 76., 'Experimental', color='k', fontsize=13, fontweight='bold')
-        figname = outpath+"ProbMap_"+fvarname+"_"+str(qlev[i]).zfill(1)+"_fcst"+str(ltime1).zfill(2)+"to"+str(ltime2).zfill(2)+"_"+mode+"_"+fpname
+        figname = outpath+"ProbMap_"+fvarname+"_"+str(qlev[i]).zfill(1)+"_fcst"+str(ltime1).zfill(2)+"to"+str(ltime2).zfill(2)+"_"+fpname
         plt.savefig(figname+".png", dpi=200, facecolor='w', edgecolor='w',
                 orientation='portrait', format='png',transparent=False, bbox_inches='tight', pad_inches=0.1)
 
@@ -407,7 +407,7 @@ if __name__ == "__main__":
     # model name (GEFS, ECMWF etc)
     model=str(wconfig['model'])
 
-    # number of ensemble members
+    # Internal or External (mask tropics during hurricane season)
     mode=str(wconfig['mode'])
     # number of ensemble members
     nenm=wconfig['nenm']

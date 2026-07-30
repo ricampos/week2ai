@@ -68,31 +68,36 @@
     .top-content, .sub-content { display: none; }
     .top-content.active, .sub-content.active { display: block; }
 
-    /* Model Section Headers */
-    .model-header {
+    /* Section Headers */
+    .row-header {
       color: #003366;
-      border-bottom: 1px dashed #cbd5e1;
-      padding-bottom: 5px;
-      margin-top: 25px;
+      border-bottom: 2px solid #cbd5e1;
+      padding-bottom: 4px;
+      margin-top: 30px;
       margin-bottom: 15px;
-      font-size: 1.2rem;
+      font-size: 1.25rem;
     }
 
-    /* Grid Layout for Figures */
-    .grid { 
+    /* 3-Column Comparison Grid (GEFS | ECMWF | EnvCanada) */
+    .grid-3col { 
       display: grid; 
-      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); 
-      gap: 20px; 
+      grid-template-columns: repeat(3, 1fr); 
+      gap: 15px; 
+      margin-bottom: 25px;
     }
+    @media (max-width: 900px) {
+      .grid-3col { grid-template-columns: 1fr; } /* Stack vertically on small screens */
+    }
+
     .card { 
       background: white; 
       border-radius: 8px; 
-      padding: 12px; 
+      padding: 10px; 
       box-shadow: 0 2px 5px rgba(0,0,0,0.08); 
       text-align: center; 
     }
     .card h4 {
-      margin: 0 0 10px 0;
+      margin: 0 0 8px 0;
       color: #1e293b;
       font-size: 0.95rem;
     }
@@ -101,6 +106,41 @@
       height: auto; 
       border-radius: 4px; 
       border: 1px solid #e2e8f0; 
+      cursor: zoom-in;
+      transition: transform 0.15s ease-in-out;
+    }
+    img:hover {
+      transform: scale(1.02);
+    }
+
+    /* Full-Screen Pop-up Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.85);
+      justify-content: center;
+      align-items: center;
+      cursor: zoom-out;
+    }
+    .modal-content {
+      max-width: 95%;
+      max-height: 95%;
+      border-radius: 6px;
+      box-shadow: 0 0 20px rgba(255,255,255,0.2);
+    }
+    .modal-caption {
+      position: absolute;
+      bottom: 15px;
+      color: white;
+      font-size: 16px;
+      background: rgba(0,0,0,0.6);
+      padding: 6px 16px;
+      border-radius: 4px;
     }
   </style>
 </head>
@@ -130,53 +170,61 @@
 
     <!-- ProbMaps -> Hs -->
     <div id="Prob_Hs" class="sub-content active">
-      <h3 class="model-header">ECMWF</h3>
-      <div class="grid">
-        <div class="card"><h4>Hs > 4.0m</h4><img src="figures/Hs/ProbMap_Hs_4.0_fcst07to14_ECMWF_MAIN.png" alt="Hs 4.0 ECMWF"></div>
-        <div class="card"><h4>Hs > 6.0m</h4><img src="figures/Hs/ProbMap_Hs_6.0_fcst07to14_ECMWF_MAIN.png" alt="Hs 6.0 ECMWF"></div>
-        <div class="card"><h4>Hs > 9.0m</h4><img src="figures/Hs/ProbMap_Hs_9.0_fcst07to14_ECMWF_MAIN.png" alt="Hs 9.0 ECMWF"></div>
-        <div class="card"><h4>Hs > 14.0m</h4><img src="figures/Hs/ProbMap_Hs_14.0_fcst07to14_ECMWF_MAIN.png" alt="Hs 14.0 ECMWF"></div>
+      
+      <h3 class="row-header">Hs > 4.0m</h3>
+      <div class="grid-3col">
+        <div class="card"><h4>GEFS</h4><img src="figures/Hs/ProbMap_Hs_4.0_fcst07to14_GEFS_MAIN.png" alt="Hs 4.0m - GEFS" onclick="openModal(this)"></div>
+        <div class="card"><h4>ECMWF</h4><img src="figures/Hs/ProbMap_Hs_4.0_fcst07to14_ECMWF_MAIN.png" alt="Hs 4.0m - ECMWF" onclick="openModal(this)"></div>
+        <div class="card"><h4>EnvCanada</h4><img src="figures/Hs/ProbMap_Hs_4.0_fcst07to14_EnvCanada_MAIN.png" alt="Hs 4.0m - EnvCanada" onclick="openModal(this)"></div>
       </div>
 
-      <h3 class="model-header">EnvCanada</h3>
-      <div class="grid">
-        <div class="card"><h4>Hs > 4.0m</h4><img src="figures/Hs/ProbMap_Hs_4.0_fcst07to14_EnvCanada_MAIN.png" alt="Hs 4.0 EnvCanada"></div>
-        <div class="card"><h4>Hs > 6.0m</h4><img src="figures/Hs/ProbMap_Hs_6.0_fcst07to14_EnvCanada_MAIN.png" alt="Hs 6.0 EnvCanada"></div>
-        <div class="card"><h4>Hs > 9.0m</h4><img src="figures/Hs/ProbMap_Hs_9.0_fcst07to14_EnvCanada_MAIN.png" alt="Hs 9.0 EnvCanada"></div>
-        <div class="card"><h4>Hs > 14.0m</h4><img src="figures/Hs/ProbMap_Hs_14.0_fcst07to14_EnvCanada_MAIN.png" alt="Hs 14.0 EnvCanada"></div>
+      <h3 class="row-header">Hs > 6.0m</h3>
+      <div class="grid-3col">
+        <div class="card"><h4>GEFS</h4><img src="figures/Hs/ProbMap_Hs_6.0_fcst07to14_GEFS_MAIN.png" alt="Hs 6.0m - GEFS" onclick="openModal(this)"></div>
+        <div class="card"><h4>ECMWF</h4><img src="figures/Hs/ProbMap_Hs_6.0_fcst07to14_ECMWF_MAIN.png" alt="Hs 6.0m - ECMWF" onclick="openModal(this)"></div>
+        <div class="card"><h4>EnvCanada</h4><img src="figures/Hs/ProbMap_Hs_6.0_fcst07to14_EnvCanada_MAIN.png" alt="Hs 6.0m - EnvCanada" onclick="openModal(this)"></div>
       </div>
 
-      <h3 class="model-header">GEFS</h3>
-      <div class="grid">
-        <div class="card"><h4>Hs > 4.0m</h4><img src="figures/Hs/ProbMap_Hs_4.0_fcst07to14_GEFS_MAIN.png" alt="Hs 4.0 GEFS"></div>
-        <div class="card"><h4>Hs > 6.0m</h4><img src="figures/Hs/ProbMap_Hs_6.0_fcst07to14_GEFS_MAIN.png" alt="Hs 6.0 GEFS"></div>
-        <div class="card"><h4>Hs > 9.0m</h4><img src="figures/Hs/ProbMap_Hs_9.0_fcst07to14_GEFS_MAIN.png" alt="Hs 9.0 GEFS"></div>
-        <div class="card"><h4>Hs > 14.0m</h4><img src="figures/Hs/ProbMap_Hs_14.0_fcst07to14_GEFS_MAIN.png" alt="Hs 14.0 GEFS"></div>
+      <h3 class="row-header">Hs > 9.0m</h3>
+      <div class="grid-3col">
+        <div class="card"><h4>GEFS</h4><img src="figures/Hs/ProbMap_Hs_9.0_fcst07to14_GEFS_MAIN.png" alt="Hs 9.0m - GEFS" onclick="openModal(this)"></div>
+        <div class="card"><h4>ECMWF</h4><img src="figures/Hs/ProbMap_Hs_9.0_fcst07to14_ECMWF_MAIN.png" alt="Hs 9.0m - ECMWF" onclick="openModal(this)"></div>
+        <div class="card"><h4>EnvCanada</h4><img src="figures/Hs/ProbMap_Hs_9.0_fcst07to14_EnvCanada_MAIN.png" alt="Hs 9.0m - EnvCanada" onclick="openModal(this)"></div>
       </div>
+
+      <h3 class="row-header">Hs > 14.0m</h3>
+      <div class="grid-3col">
+        <div class="card"><h4>GEFS</h4><img src="figures/Hs/ProbMap_Hs_14.0_fcst07to14_GEFS_MAIN.png" alt="Hs 14.0m - GEFS" onclick="openModal(this)"></div>
+        <div class="card"><h4>ECMWF</h4><img src="figures/Hs/ProbMap_Hs_14.0_fcst07to14_ECMWF_MAIN.png" alt="Hs 14.0m - ECMWF" onclick="openModal(this)"></div>
+        <div class="card"><h4>EnvCanada</h4><img src="figures/Hs/ProbMap_Hs_14.0_fcst07to14_EnvCanada_MAIN.png" alt="Hs 14.0m - EnvCanada" onclick="openModal(this)"></div>
+      </div>
+
     </div>
 
     <!-- ProbMaps -> WS10 -->
     <div id="Prob_WS10" class="sub-content">
-      <h3 class="model-header">ECMWF</h3>
-      <div class="grid">
-        <div class="card"><h4>WS10 > 34.0 kts</h4><img src="figures/WS10/ProbMap_WS10_34.0_fcst07to14_ECMWF_MAIN.png" alt="WS10 34.0 ECMWF"></div>
-        <div class="card"><h4>WS10 > 48.0 kts</h4><img src="figures/WS10/ProbMap_WS10_48.0_fcst07to14_ECMWF_MAIN.png" alt="WS10 48.0 ECMWF"></div>
-        <div class="card"><h4>WS10 > 64.0 kts</h4><img src="figures/WS10/ProbMap_WS10_64.0_fcst07to14_ECMWF_MAIN.png" alt="WS10 64.0 ECMWF"></div>
+      
+      <h3 class="row-header">WS10 > 34.0 kts</h3>
+      <div class="grid-3col">
+        <div class="card"><h4>GEFS</h4><img src="figures/WS10/ProbMap_WS10_34.0_fcst07to14_GEFS_MAIN.png" alt="WS10 34.0 kts - GEFS" onclick="openModal(this)"></div>
+        <div class="card"><h4>ECMWF</h4><img src="figures/WS10/ProbMap_WS10_34.0_fcst07to14_ECMWF_MAIN.png" alt="WS10 34.0 kts - ECMWF" onclick="openModal(this)"></div>
+        <div class="card"><h4>EnvCanada</h4><img src="figures/WS10/ProbMap_WS10_34.0_fcst07to14_EnvCanada_MAIN.png" alt="WS10 34.0 kts - EnvCanada" onclick="openModal(this)"></div>
       </div>
 
-      <h3 class="model-header">EnvCanada</h3>
-      <div class="grid">
-        <div class="card"><h4>WS10 > 34.0 kts</h4><img src="figures/WS10/ProbMap_WS10_34.0_fcst07to14_EnvCanada_MAIN.png" alt="WS10 34.0 EnvCanada"></div>
-        <div class="card"><h4>WS10 > 48.0 kts</h4><img src="figures/WS10/ProbMap_WS10_48.0_fcst07to14_EnvCanada_MAIN.png" alt="WS10 48.0 EnvCanada"></div>
-        <div class="card"><h4>WS10 > 64.0 kts</h4><img src="figures/WS10/ProbMap_WS10_64.0_fcst07to14_EnvCanada_MAIN.png" alt="WS10 64.0 EnvCanada"></div>
+      <h3 class="row-header">WS10 > 48.0 kts</h3>
+      <div class="grid-3col">
+        <div class="card"><h4>GEFS</h4><img src="figures/WS10/ProbMap_WS10_48.0_fcst07to14_GEFS_MAIN.png" alt="WS10 48.0 kts - GEFS" onclick="openModal(this)"></div>
+        <div class="card"><h4>ECMWF</h4><img src="figures/WS10/ProbMap_WS10_48.0_fcst07to14_ECMWF_MAIN.png" alt="WS10 48.0 kts - ECMWF" onclick="openModal(this)"></div>
+        <div class="card"><h4>EnvCanada</h4><img src="figures/WS10/ProbMap_WS10_48.0_fcst07to14_EnvCanada_MAIN.png" alt="WS10 48.0 kts - EnvCanada" onclick="openModal(this)"></div>
       </div>
 
-      <h3 class="model-header">GEFS</h3>
-      <div class="grid">
-        <div class="card"><h4>WS10 > 34.0 kts</h4><img src="figures/WS10/ProbMap_WS10_34.0_fcst07to14_GEFS_MAIN.png" alt="WS10 34.0 GEFS"></div>
-        <div class="card"><h4>WS10 > 48.0 kts</h4><img src="figures/WS10/ProbMap_WS10_48.0_fcst07to14_GEFS_MAIN.png" alt="WS10 48.0 GEFS"></div>
-        <div class="card"><h4>WS10 > 64.0 kts</h4><img src="figures/WS10/ProbMap_WS10_64.0_fcst07to14_GEFS_MAIN.png" alt="WS10 64.0 GEFS"></div>
+      <h3 class="row-header">WS10 > 64.0 kts</h3>
+      <div class="grid-3col">
+        <div class="card"><h4>GEFS</h4><img src="figures/WS10/ProbMap_WS10_64.0_fcst07to14_GEFS_MAIN.png" alt="WS10 64.0 kts - GEFS" onclick="openModal(this)"></div>
+        <div class="card"><h4>ECMWF</h4><img src="figures/WS10/ProbMap_WS10_64.0_fcst07to14_ECMWF_MAIN.png" alt="WS10 64.0 kts - ECMWF" onclick="openModal(this)"></div>
+        <div class="card"><h4>EnvCanada</h4><img src="figures/WS10/ProbMap_WS10_64.0_fcst07to14_EnvCanada_MAIN.png" alt="WS10 64.0 kts - EnvCanada" onclick="openModal(this)"></div>
       </div>
+
     </div>
 
   </div>
@@ -194,87 +242,101 @@
 
     <!-- Pctl -> Hs -->
     <div id="Pctl_Hs" class="sub-content active">
-      <h3 class="model-header">ECMWF</h3>
-      <div class="grid">
-        <div class="card"><h4>Pctl 95</h4><img src="figures/Hs/Pctl95_Hs_fcst07to14_ECMWF_MAIN.png" alt="Pctl95 Hs ECMWF"></div>
-        <div class="card"><h4>Pctl 99</h4><img src="figures/Hs/Pctl99_Hs_fcst07to14_ECMWF_MAIN.png" alt="Pctl99 Hs ECMWF"></div>
+      
+      <h3 class="row-header">Percentile 95</h3>
+      <div class="grid-3col">
+        <div class="card"><h4>GEFS</h4><img src="figures/Hs/Pctl95_Hs_fcst07to14_GEFS_MAIN.png" alt="Pctl 95 Hs - GEFS" onclick="openModal(this)"></div>
+        <div class="card"><h4>ECMWF</h4><img src="figures/Hs/Pctl95_Hs_fcst07to14_ECMWF_MAIN.png" alt="Pctl 95 Hs - ECMWF" onclick="openModal(this)"></div>
+        <div class="card"><h4>EnvCanada</h4><img src="figures/Hs/Pctl95_Hs_fcst07to14_EnvCanada_MAIN.png" alt="Pctl 95 Hs - EnvCanada" onclick="openModal(this)"></div>
       </div>
 
-      <h3 class="model-header">EnvCanada</h3>
-      <div class="grid">
-        <div class="card"><h4>Pctl 95</h4><img src="figures/Hs/Pctl95_Hs_fcst07to14_EnvCanada_MAIN.png" alt="Pctl95 Hs EnvCanada"></div>
-        <div class="card"><h4>Pctl 99</h4><img src="figures/Hs/Pctl99_Hs_fcst07to14_EnvCanada_MAIN.png" alt="Pctl99 Hs EnvCanada"></div>
+      <h3 class="row-header">Percentile 99</h3>
+      <div class="grid-3col">
+        <div class="card"><h4>GEFS</h4><img src="figures/Hs/Pctl99_Hs_fcst07to14_GEFS_MAIN.png" alt="Pctl 99 Hs - GEFS" onclick="openModal(this)"></div>
+        <div class="card"><h4>ECMWF</h4><img src="figures/Hs/Pctl99_Hs_fcst07to14_ECMWF_MAIN.png" alt="Pctl 99 Hs - ECMWF" onclick="openModal(this)"></div>
+        <div class="card"><h4>EnvCanada</h4><img src="figures/Hs/Pctl99_Hs_fcst07to14_EnvCanada_MAIN.png" alt="Pctl 99 Hs - EnvCanada" onclick="openModal(this)"></div>
       </div>
 
-      <h3 class="model-header">GEFS</h3>
-      <div class="grid">
-        <div class="card"><h4>Pctl 95</h4><img src="figures/Hs/Pctl95_Hs_fcst07to14_GEFS_MAIN.png" alt="Pctl95 Hs GEFS"></div>
-        <div class="card"><h4>Pctl 99</h4><img src="figures/Hs/Pctl99_Hs_fcst07to14_GEFS_MAIN.png" alt="Pctl99 Hs GEFS"></div>
-      </div>
     </div>
 
     <!-- Pctl -> WS10 -->
     <div id="Pctl_WS10" class="sub-content">
-      <h3 class="model-header">ECMWF</h3>
-      <div class="grid">
-        <div class="card"><h4>Pctl 95</h4><img src="figures/WS10/Pctl95_WS10_fcst07to14_ECMWF_MAIN.png" alt="Pctl95 WS10 ECMWF"></div>
-        <div class="card"><h4>Pctl 99</h4><img src="figures/WS10/Pctl99_WS10_fcst07to14_ECMWF_MAIN.png" alt="Pctl99 WS10 ECMWF"></div>
+      
+      <h3 class="row-header">Percentile 95</h3>
+      <div class="grid-3col">
+        <div class="card"><h4>GEFS</h4><img src="figures/WS10/Pctl95_WS10_fcst07to14_GEFS_MAIN.png" alt="Pctl 95 WS10 - GEFS" onclick="openModal(this)"></div>
+        <div class="card"><h4>ECMWF</h4><img src="figures/WS10/Pctl95_WS10_fcst07to14_ECMWF_MAIN.png" alt="Pctl 95 WS10 - ECMWF" onclick="openModal(this)"></div>
+        <div class="card"><h4>EnvCanada</h4><img src="figures/WS10/Pctl95_WS10_fcst07to14_EnvCanada_MAIN.png" alt="Pctl 95 WS10 - EnvCanada" onclick="openModal(this)"></div>
       </div>
 
-      <h3 class="model-header">EnvCanada</h3>
-      <div class="grid">
-        <div class="card"><h4>Pctl 95</h4><img src="figures/WS10/Pctl95_WS10_fcst07to14_EnvCanada_MAIN.png" alt="Pctl95 WS10 EnvCanada"></div>
-        <div class="card"><h4>Pctl 99</h4><img src="figures/WS10/Pctl99_WS10_fcst07to14_EnvCanada_MAIN.png" alt="Pctl99 WS10 EnvCanada"></div>
+      <h3 class="row-header">Percentile 99</h3>
+      <div class="grid-3col">
+        <div class="card"><h4>GEFS</h4><img src="figures/WS10/Pctl99_WS10_fcst07to14_GEFS_MAIN.png" alt="Pctl 99 WS10 - GEFS" onclick="openModal(this)"></div>
+        <div class="card"><h4>ECMWF</h4><img src="figures/WS10/Pctl99_WS10_fcst07to14_ECMWF_MAIN.png" alt="Pctl 99 WS10 - ECMWF" onclick="openModal(this)"></div>
+        <div class="card"><h4>EnvCanada</h4><img src="figures/WS10/Pctl99_WS10_fcst07to14_EnvCanada_MAIN.png" alt="Pctl 99 WS10 - EnvCanada" onclick="openModal(this)"></div>
       </div>
 
-      <h3 class="model-header">GEFS</h3>
-      <div class="grid">
-        <div class="card"><h4>Pctl 95</h4><img src="figures/WS10/Pctl95_WS10_fcst07to14_GEFS_MAIN.png" alt="Pctl95 WS10 GEFS"></div>
-        <div class="card"><h4>Pctl 99</h4><img src="figures/WS10/Pctl99_WS10_fcst07to14_GEFS_MAIN.png" alt="Pctl99 WS10 GEFS"></div>
-      </div>
     </div>
 
   </div>
 
-  <!-- JavaScript for Nested Tab Switching -->
+  <!-- Pop-Up Full Screen Modal Container -->
+  <div id="imageModal" class="modal" onclick="closeModal()">
+    <img id="modalImg" class="modal-content" src="" alt="Full Screen Map">
+    <div id="modalCaption" class="modal-caption"></div>
+  </div>
+
+  <!-- JavaScript logic -->
   <script>
+    // Tab Navigation Logic
     function openTopTab(evt, topTabId) {
-      // Hide all top-level contents
       const topContents = document.getElementsByClassName("top-content");
       for (let i = 0; i < topContents.length; i++) {
         topContents[i].classList.remove("active");
       }
-
-      // Deactivate all top buttons
       const topBtns = document.getElementsByClassName("top-tab-btn");
       for (let i = 0; i < topBtns.length; i++) {
         topBtns[i].classList.remove("active");
       }
-
-      // Show selected top content and set button active
       document.getElementById(topTabId).classList.add("active");
       evt.currentTarget.classList.add("active");
     }
 
     function openSubTab(evt, parentId, subTabId) {
       const parentEl = document.getElementById(parentId);
-
-      // Hide all sub-contents inside this specific top-tab section
       const subContents = parentEl.getElementsByClassName("sub-content");
       for (let i = 0; i < subContents.length; i++) {
         subContents[i].classList.remove("active");
       }
-
-      // Deactivate all sub-tab buttons inside this top-tab section
       const subBtns = parentEl.getElementsByClassName("sub-tab-btn");
       for (let i = 0; i < subBtns.length; i++) {
         subBtns[i].classList.remove("active");
       }
-
-      // Show selected sub-content and set button active
       document.getElementById(subTabId).classList.add("active");
       evt.currentTarget.classList.add("active");
     }
+
+    // Modal Full Screen Pop-up Logic
+    function openModal(imgElement) {
+      const modal = document.getElementById("imageModal");
+      const modalImg = document.getElementById("modalImg");
+      const modalCaption = document.getElementById("modalCaption");
+      
+      modal.style.display = "flex";
+      modalImg.src = imgElement.src;
+      modalCaption.innerText = imgElement.alt;
+    }
+
+    function closeModal() {
+      document.getElementById("imageModal").style.display = "none";
+    }
+
+    // Close Modal on ESC key
+    document.addEventListener("keydown", function(event) {
+      if (event.key === "Escape") {
+        closeModal();
+      }
+    });
   </script>
 
 </body>

@@ -171,10 +171,7 @@ def read_mm(auxltime,model,fvarname,mvar,nenm,mpath,fcdate,fchour):
                     lat = np.sort(np.array(f.variables['lat'][:]))
                     lon = np.array(f.variables['lon'][:]); lon=lon+180.; half = len(lon) // 2
                     fmod = np.zeros((len(indt),nenm,len(lat),len(lon)),'f')
-
-                    ds = xr.open_dataset(fname)
-                    wtime = np.atleast_1d(np.array(ds.time.values))[indt]
-                    del ds
+                    wtime = np.atleast_1d(np.datetime64(pd.to_datetime(fcdate+fchour, format='%Y%m%d%H')))
 
                 if fvarname.upper() == "WS10" or fvarname.upper() == "WND" or fvarname.upper() == "U10":
                     # u and v components

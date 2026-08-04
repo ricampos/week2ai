@@ -22,9 +22,7 @@ HCYCLE="$1"
 # time lag in days (past days)
 pa="$2"
 # Date cycle for the download
-YEAR=`date --date=-$pa' day' '+%Y'`
-MONTH=`date --date=-$pa' day' '+%m'`
-DAY=`date --date=-$pa' day' '+%d'`
+WTIME=$(date -u -d "-${pa} days" '+%Y%m%d')
 # Path
 DIRS="/scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/GEFS"
 cd ${DIRS}

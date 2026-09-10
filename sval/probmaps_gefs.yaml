@@ -1,7 +1,7 @@
 # Configuration file for probmaps_gefs.sh and probmaps_gefs.py
 
 # GEFv12 data path, where the gefs.YYYYMMDD/00/wave/gridded/*.grib2 field outputs are located:
-gefspath: /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives
+gefspath: /scratch4/AOML/aoml-phod/Ricardo.Campos/data/archives/GEFS
 
 # Python script path and file:
 pyscript: /scratch4/AOML/aoml-phod/Ricardo.Campos/week2_sval/probmaps_gefs_valdt.py

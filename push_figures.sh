@@ -22,16 +22,10 @@ EXPECTED_HS=(
   "ProbMap_Hs_6.0_fcst07to14_ECMWF_MAIN.png"
   "ProbMap_Hs_9.0_fcst07to14_ECMWF_MAIN.png"
   "ProbMap_Hs_14.0_fcst07to14_ECMWF_MAIN.png"
-  "ProbMap_Hs_4.0_fcst07to14_EnvCanada_MAIN.png"
-  "ProbMap_Hs_6.0_fcst07to14_EnvCanada_MAIN.png"
-  "ProbMap_Hs_9.0_fcst07to14_EnvCanada_MAIN.png"
-  "ProbMap_Hs_14.0_fcst07to14_EnvCanada_MAIN.png"
   "Pctl95_Hs_fcst07to14_GEFS_MAIN.png"
   "Pctl99_Hs_fcst07to14_GEFS_MAIN.png"
   "Pctl95_Hs_fcst07to14_ECMWF_MAIN.png"
   "Pctl99_Hs_fcst07to14_ECMWF_MAIN.png"
-  "Pctl95_Hs_fcst07to14_EnvCanada_MAIN.png"
-  "Pctl99_Hs_fcst07to14_EnvCanada_MAIN.png"
 )
 
 # List of all expected WS10 figures (11 total)
@@ -42,15 +36,10 @@ EXPECTED_WS10=(
   "ProbMap_WS10_34.0_fcst07to14_ECMWF_MAIN.png"
   "ProbMap_WS10_48.0_fcst07to14_ECMWF_MAIN.png"
   "ProbMap_WS10_64.0_fcst07to14_ECMWF_MAIN.png"
-  "ProbMap_WS10_34.0_fcst07to14_EnvCanada_MAIN.png"
-  "ProbMap_WS10_48.0_fcst07to14_EnvCanada_MAIN.png"
-  "ProbMap_WS10_64.0_fcst07to14_EnvCanada_MAIN.png"
   "Pctl95_WS10_fcst07to14_GEFS_MAIN.png"
   "Pctl99_WS10_fcst07to14_GEFS_MAIN.png"
   "Pctl95_WS10_fcst07to14_ECMWF_MAIN.png"
   "Pctl99_WS10_fcst07to14_ECMWF_MAIN.png"
-  "Pctl95_WS10_fcst07to14_EnvCanada_MAIN.png"
-  "Pctl99_WS10_fcst07to14_EnvCanada_MAIN.png"
 )
 
 # Function to check if all expected files exist

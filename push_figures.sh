@@ -189,4 +189,3 @@ else
   git push origin main
   echo "Figures successfully pushed to GitHub!"
 fi
-

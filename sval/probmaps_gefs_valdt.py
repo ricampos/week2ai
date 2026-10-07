@@ -203,9 +203,9 @@ if __name__ == "__main__":
     else:
         sys.exit(" Input variable " + fvarname + " not included in the list. Please select only one: WS10, Hs.")
 
-    # bias correction configurable
-    bc_slope = 1.0
-    bc_intercept = 0.0
+    # bias correction, configurable
+    bc_slope = 1.05
+    bc_intercept = -0.20
 
     print(" Reading yaml configuration file, OK."); print(" ")
 
@@ -367,10 +367,9 @@ if __name__ == "__main__":
             ax.contour(lon, lat, hfmod[j, :, :], levels=[qlev[i]], colors='dimgrey', alpha=0.7,
                        linewidths=1, zorder=2, transform=ccrs.PlateCarree())
  
-        ax.contourf(lon, lat, gaussian_filter(np.nanmean(hfmod, axis=0), gft), levels=[0.5, 1e6],
-                    colors="gray", alpha=0.5, hatches=["//"], linewidths=0.5, transform=ccrs.PlateCarree(), zorder=3)
         ax.contour(lon, lat, np.nanmean(hfmod, axis=0), levels=[qlev[i]], colors='k', linewidths=1.5,
                    zorder=2, transform=ccrs.PlateCarree())
+
         ax.set_title(title); del title
         plt.tight_layout()
         ax2 = plt.gca(); pos = ax2.get_position(); l, b, w, h = pos.bounds

@@ -65,15 +65,12 @@ OUTPATH=$(echo "$outpath_line" | awk -F': ' '{print $2}')
 # Forecast cycle being validated
 pa=1 # expand the shift time
 HOUR="00"
-YEAR=$(date --date="-$((${LTIME2}+${pa})) day" '+%d')
-MONTH=$(date --date="-$((${LTIME2}+${pa})) day" '+%d')
-DAY=$(date --date="-$((${LTIME2}+${pa})) day" '+%d')
-DAY=$(date --date="-$((${LTIME2}+${pa})) day" '+%d')
+YEAR=$(date --date="-$((LTIME2+pa)) day" '+%Y')
+MONTH=$(date --date="-$((LTIME2+pa)) day" '+%m')
+DAY=$(date --date="-$((LTIME2+pa)) day" '+%d')
 FCYCLE="${YEAR}${MONTH}${DAY}${HOUR}"
 
-# Last archive cycle the truth window needs: fcycle + LTIME2 days, 12Z
-# (the last 12h-cadence cycle inside/closing the window)
-LASTCYCLE_DATE=$(date --date="-$((pa - LTIME2))"' day' '+%Y%m%d')
+LASTCYCLE_DATE=$(date --date="-${pa} day" '+%Y%m%d')
 LASTCYCLE_HOUR="12"
 LASTFILE="$GEFSARCHIVE/GEFSv12Waves_${LASTCYCLE_DATE}${LASTCYCLE_HOUR}/gefs.wave.${LASTCYCLE_DATE}.00.global.0p25.f012.grib2"
 
@@ -130,20 +127,20 @@ mv -f *Hs* "${YEAR}${MONTH}${DAY}${HOUR}/Hs/" 2>/dev/null || true
 mv -f *WS10* "${YEAR}${MONTH}${DAY}${HOUR}/WS10/" 2>/dev/null || true
 
 # Retention: never delete archive cycles that a validation run still needs.
-RETAIN_BUFFER=3
-CUTOFF=$(date -d "$((pa + LTIME2 + RETAIN_BUFFER)) days ago" +%Y%m%d)
-for dir in "$GEFSARCHIVE"/GEFSv12Waves_*; do
-    [ -d "$dir" ] || continue
-    BASENAME=$(basename "$dir")
-    DIR_DATE=${BASENAME#GEFSv12Waves_}
-    DIR_DATE=${DIR_DATE:0:8}
-    if [[ $DIR_DATE =~ ^[0-9]{8}$ ]]; then
-        if [[ $DIR_DATE -lt $CUTOFF ]]; then
-            echo "Deleting $dir (older than retention cutoff $CUTOFF)"
-            rm -rf "$dir"
-        fi
-    fi
-done
+# RETAIN_BUFFER=3
+# CUTOFF=$(date -d "$((pa + LTIME2 + RETAIN_BUFFER)) days ago" +%Y%m%d)
+# for dir in "$GEFSARCHIVE"/GEFSv12Waves_*; do
+#    [ -d "$dir" ] || continue
+#    BASENAME=$(basename "$dir")
+#    DIR_DATE=${BASENAME#GEFSv12Waves_}
+#    DIR_DATE=${DIR_DATE:0:8}
+#    if [[ $DIR_DATE =~ ^[0-9]{8}$ ]]; then
+#        if [[ $DIR_DATE -lt $CUTOFF ]]; then
+#            echo "Deleting $dir (older than retention cutoff $CUTOFF)"
+#            rm -rf "$dir"
+#        fi
+#    fi
+# done
 
 echo "  "
 echo " Done."

@@ -65,6 +65,7 @@ import numpy as np
 import pandas as pd
 import cartopy
 import cartopy.crs as ccrs
+import shutil
 import sys
 import warnings; warnings.filterwarnings("ignore")
 # --------------------------------------------------------------------------
@@ -118,7 +119,7 @@ def build_gefs_truth(gefspath, fcycle, ltime1, ltime2, tres, nenm, cyclestep, fv
                          cdate + "." + str(int(enm)).zfill(2) + ".global.0p25.f" +
                          str(int(lh)).zfill(3) + ".grib2")
                 try:
-                    ds = xr.open_dataset(fname, engine='cfgrib')
+                    ds = xr.open_dataset(fname, engine='cfgrib', backend_kwargs={'indexpath': ''})
                 except Exception:
                     sys.exit(" build_gefs_truth: could not open reference file " + fname)
 
@@ -202,9 +203,9 @@ if __name__ == "__main__":
     else:
         sys.exit(" Input variable " + fvarname + " not included in the list. Please select only one: WS10, Hs.")
 
-    # bias correction and hatch threshold, configurable
-    bc_slope = 1.0
-    bc_intercept = 0.0
+    # bias correction, configurable
+    bc_slope = 1.05
+    bc_intercept = -0.20
 
     print(" Reading yaml configuration file, OK."); print(" ")
 
@@ -244,13 +245,13 @@ if __name__ == "__main__":
             fname = (gefspath + "GEFSv12Waves_" + fcdate + fchour + "/gefs.wave." + fcdate + "." +
                      str(int(enm)).zfill(2) + ".global.0p25.f" + str(int(auxltime[t])).zfill(3) + ".grib2")
             if c == 0:
-                ds = xr.open_dataset(fname, engine='cfgrib')
+                ds = xr.open_dataset(fname, engine='cfgrib', backend_kwargs={'indexpath': ''})
                 wtime = np.atleast_1d(np.array(ds.time.values))
                 lat = np.array(ds.latitude.values); lat = np.sort(lat); lon = np.array(ds.longitude.values)
                 fmod = np.zeros((auxltime.shape[0], nenm, lat.shape[0], lon.shape[0]), 'f') * np.nan
                 ds.close(); del ds
 
-            ds = xr.open_dataset(fname, engine='cfgrib')
+            ds = xr.open_dataset(fname, engine='cfgrib', backend_kwargs={'indexpath': ''})
             fmod[t, enm, :, :] = np.array(np.flip(ds[xrvar].values[:], axis=0)).astype('float')
             ds.close(); del ds
             c = c + 1
@@ -366,10 +367,9 @@ if __name__ == "__main__":
             ax.contour(lon, lat, hfmod[j, :, :], levels=[qlev[i]], colors='dimgrey', alpha=0.7,
                        linewidths=1, zorder=2, transform=ccrs.PlateCarree())
  
-        ax.contourf(lon, lat, gaussian_filter(np.nanmean(hfmod, axis=0), gft), levels=[hatch_thresh, 1e6],
-                    colors="gray", alpha=0.5, hatches=["//"], linewidths=0.5, transform=ccrs.PlateCarree(), zorder=3)
         ax.contour(lon, lat, np.nanmean(hfmod, axis=0), levels=[qlev[i]], colors='k', linewidths=1.5,
                    zorder=2, transform=ccrs.PlateCarree())
+
         ax.set_title(title); del title
         plt.tight_layout()
         ax2 = plt.gca(); pos = ax2.get_position(); l, b, w, h = pos.bounds

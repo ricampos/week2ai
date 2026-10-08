@@ -21,6 +21,7 @@
       border-bottom: 3px solid #003366;
       margin-bottom: 15px;
       gap: 8px;
+      flex-wrap: wrap;
     }
     .top-tab-btn {
       background-color: #dbe2ef;
@@ -76,6 +77,17 @@
       margin-top: 30px;
       margin-bottom: 15px;
       font-size: 1.25rem;
+    }
+
+    /* Validation description box */
+    .val-note {
+      background: #eef2f7;
+      border-left: 4px solid #003366;
+      border-radius: 4px;
+      padding: 10px 14px;
+      margin: 0 0 10px 0;
+      font-size: 0.95rem;
+      color: #334155;
     }
 
     /* 2-Column Comparison Grid (GEFS | ECMWF) */
@@ -148,13 +160,14 @@
 
   <header>
     <h1>Probabilistic Forecast of Winds and Waves</h1>
-    <p class="subtitle">Week-2 Multi-Model Ensemble Probabilistic Forecasts & Percentiles</p>
+    <p class="subtitle">Week-2 Multi-Model Ensemble Probabilistic Forecasts, Percentiles & Automatic Validation</p>
   </header>
 
-  <!-- TOP LEVEL TABS: ProbMaps vs Pctl -->
+  <!-- TOP LEVEL TABS: ProbMaps vs Pctl vs Validation -->
   <div class="top-tab-container">
     <button class="top-tab-btn active" onclick="openTopTab(event, 'ProbMaps')">Probability Maps</button>
     <button class="top-tab-btn" onclick="openTopTab(event, 'Pctl')">Percentiles</button>
+    <button class="top-tab-btn" onclick="openTopTab(event, 'Validation')">Automatic Validation</button>
   </div>
 
   <!-- ========================================== -->
@@ -269,6 +282,70 @@
 
   </div>
 
+  <!-- ========================================== -->
+  <!-- TAB 3: AUTOMATIC VALIDATION                -->
+  <!-- ========================================== -->
+  <div id="Validation" class="top-content">
+
+    <p class="val-note">
+      Spatial validation of the week-2 GEFS probability maps: the forecast cycle issued 15 days ago
+      is compared against a pseudo ground truth built from the first hours of the GEFS cycles archived
+      within the validated window. Validated cycle: <strong id="valCycle">n/a</strong>.
+    </p>
+
+    <!-- Sub Tabs: Hs vs WS10 -->
+    <div class="sub-tab-container">
+      <button class="sub-tab-btn active" onclick="openSubTab(event, 'Validation', 'Val_Hs')">Significant Wave Height (Hs)</button>
+      <button class="sub-tab-btn" onclick="openSubTab(event, 'Validation', 'Val_WS10')">10m Wind Speed (WS10)</button>
+    </div>
+
+    <!-- Validation -> Hs -->
+    <div id="Val_Hs" class="sub-content active">
+
+      <h3 class="row-header">Hs > 4.0m</h3>
+      <div class="grid-2col">
+        <div class="card"><h4>GEFS Validation</h4><img src="figures/Validation/Hs/ProbMap_SpatialValidation_Hs_4.0_latest_GEFS_MAIN.png" alt="Validation Hs 4.0m - GEFS" onclick="openModal(this)"></div>
+      </div>
+
+      <h3 class="row-header">Hs > 6.0m</h3>
+      <div class="grid-2col">
+        <div class="card"><h4>GEFS Validation</h4><img src="figures/Validation/Hs/ProbMap_SpatialValidation_Hs_6.0_latest_GEFS_MAIN.png" alt="Validation Hs 6.0m - GEFS" onclick="openModal(this)"></div>
+      </div>
+
+      <h3 class="row-header">Hs > 9.0m</h3>
+      <div class="grid-2col">
+        <div class="card"><h4>GEFS Validation</h4><img src="figures/Validation/Hs/ProbMap_SpatialValidation_Hs_9.0_latest_GEFS_MAIN.png" alt="Validation Hs 9.0m - GEFS" onclick="openModal(this)"></div>
+      </div>
+
+      <h3 class="row-header">Hs > 14.0m</h3>
+      <div class="grid-2col">
+        <div class="card"><h4>GEFS Validation</h4><img src="figures/Validation/Hs/ProbMap_SpatialValidation_Hs_14.0_latest_GEFS_MAIN.png" alt="Validation Hs 14.0m - GEFS" onclick="openModal(this)"></div>
+      </div>
+
+    </div>
+
+    <!-- Validation -> WS10 -->
+    <div id="Val_WS10" class="sub-content">
+
+      <h3 class="row-header">WS10 > 34.0 kts</h3>
+      <div class="grid-2col">
+        <div class="card"><h4>GEFS Validation</h4><img src="figures/Validation/WS10/ProbMap_SpatialValidation_WS10_34.0_latest_GEFS_MAIN.png" alt="Validation WS10 34.0 kts - GEFS" onclick="openModal(this)"></div>
+      </div>
+
+      <h3 class="row-header">WS10 > 48.0 kts</h3>
+      <div class="grid-2col">
+        <div class="card"><h4>GEFS Validation</h4><img src="figures/Validation/WS10/ProbMap_SpatialValidation_WS10_48.0_latest_GEFS_MAIN.png" alt="Validation WS10 48.0 kts - GEFS" onclick="openModal(this)"></div>
+      </div>
+
+      <h3 class="row-header">WS10 > 64.0 kts</h3>
+      <div class="grid-2col">
+        <div class="card"><h4>GEFS Validation</h4><img src="figures/Validation/WS10/ProbMap_SpatialValidation_WS10_64.0_latest_GEFS_MAIN.png" alt="Validation WS10 64.0 kts - GEFS" onclick="openModal(this)"></div>
+      </div>
+
+    </div>
+
+  </div>
+
   <!-- Pop-Up Full Screen Modal Container -->
   <div id="imageModal" class="modal" onclick="closeModal()">
     <img id="modalImg" class="modal-content" src="" alt="Full Screen Map">
@@ -326,6 +403,19 @@
         closeModal();
       }
     });
+
+    // Show which forecast cycle the validation figures refer to
+    // (figures/Validation/validated_cycle.txt is written by push_figures.sh, format YYYYMMDDHH)
+    fetch("figures/Validation/validated_cycle.txt", { cache: "no-store" })
+      .then(function(r) { return r.ok ? r.text() : ""; })
+      .then(function(t) {
+        t = t.trim();
+        if (/^\d{10}$/.test(t)) {
+          document.getElementById("valCycle").textContent =
+            t.slice(0, 4) + "-" + t.slice(4, 6) + "-" + t.slice(6, 8) + " " + t.slice(8, 10) + "Z";
+        }
+      })
+      .catch(function() {});
   </script>
 
 </body>

@@ -49,8 +49,6 @@ PYCYAML="$1"
 # Fixed validation window (week 2), matching operational probmaps.sh
 LTIME1=7
 LTIME2=14
-# Cycle step to build reference
-CYCLESTEP=12
 
 # Read the YAML as a text file:
 gefspath_line=$(grep 'gefspath' "${PYCYAML}")

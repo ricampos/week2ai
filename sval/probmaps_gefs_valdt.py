@@ -15,11 +15,8 @@ PURPOSE:
  A forecast cycle (fcycle) made 7-14 days ago is compared against a
   pseudo ground-truth field built entirely from archived GEFS ensemble
   data (no independent obs/analysis needed).
- Ground truth is built by stitching together the first hours (default: 0-12h) 
-  of lead time from every archived GEFS cycle whose
-  initialization time falls inside the validation window
-  [fcycle+ltime1-1 days, fcycle+ltime2 days]. Archived cycles are
-  `cyclestep` hours apart (12h: 00Z/12Z in the current archive).
+ Ground truth is built by stitching together the first hours of lead time 
+ from every archived GEFS cycle available
  Archive directory/file convention expected (same as the operational
   read_gefs() in probmaps.py):
    <gefspath>/GEFSv12Waves_<YYYYMMDD><HH>/gefs.wave.<YYYYMMDD>.<EE>.global.0p25.f<LLL>.grib2
@@ -55,6 +52,7 @@ PERSON OF CONTACT:
 
 # Pay attention to the pre-requisites and libraries
 import matplotlib
+import os
 matplotlib.use('Agg')
 import xarray as xr
 import matplotlib.pyplot as plt
@@ -73,14 +71,25 @@ sl = 13  # plot style configuration
 matplotlib.rcParams.update({'font.size': sl}); plt.rc('font', size=sl)
 matplotlib.rc('xtick', labelsize=sl); matplotlib.rc('ytick', labelsize=sl); matplotlib.rcParams.update({'font.size': sl})
 
+def _read_member(fname, xrvar):
+    '''Read one member file; returns (field flipped to ascending lat, lat, lon).'''
+    ds = xr.open_dataset(fname, engine='cfgrib', backend_kwargs={'indexpath': ''})
+    la = np.sort(np.array(ds.latitude.values))
+    lo = np.array(ds.longitude.values)
+    aux = np.array(np.flip(ds[xrvar].values[:], axis=0)).astype('float')
+    ds.close(); del ds
+    return aux, la, lo
 
-def build_gefs_truth(gefspath, fcycle, ltime1, ltime2, tres, nenm, cyclestep, fvarname):
+def build_gefs_truth(gefspath, fcycle, ltime1, ltime2, tres, nenm, fvarname,
+                     cycle_base=6, max_lead=48, min_members=None):
     '''
-    Build a pseudo ground-truth ensemble field for the validation window
-    [fcycle + (ltime1-1) days, fcycle + ltime2 days] by stitching together
-    the first hours of lead time from every archived GEFS cycle
-    whose initialization time falls inside that window. Consecutive
-    archive cycles are `cyclestep` hours apart.
+    Pseudo ground truth on the forecast time axis (every `tres` h) for
+    [fcycle + (ltime1-1) days, fcycle + ltime2 days].
+
+    For each valid time AND each member, the most recent archived cycle that
+    has that member's file is used (6h grid, up to max_lead h before the
+    valid time). A valid time is kept only if at least `min_members` members
+    were found (default: half of nenm); members with nothing found stay NaN.
 
     Returns tfmod (time, member, lat, lon), lat, lon, twtime.
     '''
@@ -88,64 +97,83 @@ def build_gefs_truth(gefspath, fcycle, ltime1, ltime2, tres, nenm, cyclestep, fv
     fcycle_dt = pd.to_datetime(fcycle, format='%Y%m%d%H')
     win_start = fcycle_dt + pd.Timedelta(hours=(ltime1 - 1) * 24)
     win_end = fcycle_dt + pd.Timedelta(hours=ltime2 * 24)
-
-    cycle_times = pd.date_range(win_start, win_end, freq=str(int(cyclestep)) + 'h')
-    if cycle_times[-1] < win_end:
-        cycle_times = cycle_times.append(pd.DatetimeIndex([win_end]))
-    ncyc = cycle_times.shape[0]
+    valid_times = pd.date_range(win_start, win_end, freq=str(int(tres)) + 'h')
 
     if fvarname.upper() == "WS10" or fvarname.upper() == "WND" or fvarname.upper() == "U10":
         xrvar = 'ws'
     else:
         xrvar = 'swh'
 
+    if min_members is None:
+        min_members = max(1, nenm // 2)
+
+    root = gefspath.rstrip('/')
+    nback = int(max_lead // cycle_base)
+
     lat = None; lon = None
     tfmod_list = []; twtime_list = []
+    missing_times = []; member_fallbacks = 0; member_gaps = 0; max_lead_used = 0
 
-    for ic in range(0, ncyc):
-        ct = cycle_times[ic]
-        cdate = ct.strftime('%Y%m%d'); chour = ct.strftime('%H')
+    for vt in valid_times:
+        init0 = vt.floor(str(int(cycle_base)) + 'h')   # latest cycle at/before vt
+        slice_fmod = None
+        nfound = 0
 
-        # Non-overlapping lead-time window
-        if ic < ncyc - 1:
-            lead_hours = np.arange(0, cyclestep, tres)
-        else:
-            lead_hours = np.arange(0, cyclestep + tres, tres)
+        for enm in range(0, nenm):
+            for k in range(0, nback + 1):
+                init = init0 - pd.Timedelta(hours=k * cycle_base)
+                lead = int(round((vt - init).total_seconds() / 3600.))
+                if lead > max_lead:
+                    break
 
-        for lh in lead_hours:
-            slice_fmod = np.zeros((nenm,), 'f')  # placeholder, replaced below on first read
-            for enm in range(0, nenm):
-                fname = (gefspath + "/GEFSv12Waves_" + cdate + chour + "/gefs.wave." +
-                         cdate + "." + str(int(enm)).zfill(2) + ".global.0p25.f" +
-                         str(int(lh)).zfill(3) + ".grib2")
+                cdate = init.strftime('%Y%m%d'); chour = init.strftime('%H')
+                fname = (root + "/GEFSv12Waves_" + cdate + chour + "/gefs.wave." + cdate + "." +
+                         str(int(enm)).zfill(2) + ".global.0p25.f" + str(int(lead)).zfill(3) + ".grib2")
+                if not os.path.isfile(fname):
+                    continue
                 try:
-                    ds = xr.open_dataset(fname, engine='cfgrib', backend_kwargs={'indexpath': ''})
+                    aux, la, lo = _read_member(fname, xrvar)
                 except Exception:
-                    sys.exit(" build_gefs_truth: could not open reference file " + fname)
+                    continue   # unreadable/corrupt -> older cycle for this member
 
                 if lat is None:
-                    lat = np.array(ds.latitude.values); lat = np.sort(lat)
-                    lon = np.array(ds.longitude.values)
-
-                aux = np.array(np.flip(ds[xrvar].values[:], axis=0)).astype('float')
-                ds.close(); del ds
-
-                if enm == 0:
-                    slice_fmod = np.zeros((nenm, lat.shape[0], lon.shape[0]), 'f') * np.nan
+                    lat = la; lon = lo
+                if slice_fmod is None:
+                    slice_fmod = np.full((nenm, lat.shape[0], lon.shape[0]), np.nan, 'f')
                 slice_fmod[enm, :, :] = aux
-                del aux
+                nfound += 1
+                if k > 0:
+                    member_fallbacks += 1
+                max_lead_used = max(max_lead_used, lead)
+                break
+            else:
+                member_gaps += 1   # no break: nothing usable within max_lead
+                continue
+            # (break path lands here; nothing else to do)
 
-            tfmod_list.append(np.copy(slice_fmod))
-            twtime_list.append(np.datetime64(ct) + np.timedelta64(int(lh), 'h'))
-            del slice_fmod
+        if slice_fmod is None or nfound < min_members:
+            missing_times.append(vt)
+            continue
 
-        print(" build_gefs_truth: cycle " + cdate + chour + " (" + str(ic + 1) + "/" + str(ncyc) + ") ok.")
+        tfmod_list.append(slice_fmod)
+        twtime_list.append(np.datetime64(vt))
+
+    if len(tfmod_list) == 0:
+        sys.exit(" build_gefs_truth: no usable archived cycles for the validation window "
+                 "(max lead " + str(max_lead) + "h).")
+
+    print(" build_gefs_truth: " + str(len(tfmod_list)) + "/" + str(valid_times.shape[0]) +
+          " valid times filled; max lead used " + str(max_lead_used) + "h; " +
+          str(member_fallbacks) + " member reads used an older cycle; " +
+          str(member_gaps) + " member slots left empty.")
+    if len(missing_times) > 0:
+        print(" build_gefs_truth: WARNING, " + str(len(missing_times)) + " valid times dropped "
+              "(fewer than " + str(min_members) + " members available).")
 
     tfmod = np.array(tfmod_list); twtime = np.array(twtime_list)
     del tfmod_list, twtime_list
 
     return tfmod, lat, lon, twtime
-
 
 if __name__ == "__main__":
 
@@ -156,9 +184,6 @@ if __name__ == "__main__":
     ltime1 = int(sys.argv[3])
     ltime2 = int(sys.argv[4])
     fvarname = str(sys.argv[5])
-
-    # Archive cycle cadence and truth-window width (hours)
-    cyclestep = 12
 
     # Fixed configuration variables, read yaml file -----------
     print(" "); print(" Reading yaml configuration file ...")
@@ -274,7 +299,7 @@ if __name__ == "__main__":
 
     print(" 2. Build ground truth from archived GEFS cycles ...")
     tfmod, tlat, tlon, twtime = build_gefs_truth(gefspath, fcycle, ltime1, ltime2, tres, nenm,
-                                                  cyclestep, fvarname)
+                                                 fvarname, cycle_base=6, max_lead=48)
 
     # Sanity check: truth grid must match the forecast grid
     if tlat.shape[0] != (lat.shape[0] + np.size(np.where((tlat < (slatmin - spws)) | (tlat > (slatmax + spws))))):
@@ -363,10 +388,13 @@ if __name__ == "__main__":
         title += pd.to_datetime(wtime[0] + np.timedelta64(ltime2, 'D')).strftime('%B %d, %Y') + "}$"
         cs = ax.contourf(lon, lat, gaussian_filter(probecdf[i, :, :], gft), levels=plevels, alpha=0.7,
                           cmap=cmap, zorder=1, transform=ccrs.PlateCarree())
+
         for j in range(0, nenm):
+            if np.all(np.isnan(hfmod[j, :, :])):
+                continue
             ax.contour(lon, lat, hfmod[j, :, :], levels=[qlev[i]], colors='dimgrey', alpha=0.7,
                        linewidths=1, zorder=2, transform=ccrs.PlateCarree())
- 
+        
         ax.contour(lon, lat, np.nanmean(hfmod, axis=0), levels=[qlev[i]], colors='k', linewidths=1.5,
                    zorder=2, transform=ccrs.PlateCarree())
 

@@ -81,17 +81,15 @@ def _read_member(fname, xrvar):
     return aux, la, lo
 
 def build_gefs_truth(gefspath, fcycle, ltime1, ltime2, tres, nenm, fvarname,
-                     cycle_base=6, max_lead=48):
+                     cycle_base=6, max_lead=48, min_members=None):
     '''
-    Build a pseudo ground-truth ensemble field for the validation window
-    [fcycle + (ltime1-1) days, fcycle + ltime2 days], on the same time axis
-    as the forecast (every `tres` hours).
+    Pseudo ground truth on the forecast time axis (every `tres` h) for
+    [fcycle + (ltime1-1) days, fcycle + ltime2 days].
 
-    For each valid time, the most recent archived GEFS cycle is used
-    (cycle_base h grid: 6h if it exists, else 12h, 18h, ... up to max_lead h
-    before the valid time). A cycle is accepted only if all `nenm` member
-    files for the required lead exist and can be read; otherwise the next
-    older cycle is tried. The lead hour is always (valid time - cycle time).
+    For each valid time AND each member, the most recent archived cycle that
+    has that member's file is used (6h grid, up to max_lead h before the
+    valid time). A valid time is kept only if at least `min_members` members
+    were found (default: half of nenm); members with nothing found stay NaN.
 
     Returns tfmod (time, member, lat, lon), lat, lon, twtime.
     '''
@@ -106,52 +104,54 @@ def build_gefs_truth(gefspath, fcycle, ltime1, ltime2, tres, nenm, fvarname,
     else:
         xrvar = 'swh'
 
+    if min_members is None:
+        min_members = max(1, nenm // 2)
+
     root = gefspath.rstrip('/')
     nback = int(max_lead // cycle_base)
 
     lat = None; lon = None
     tfmod_list = []; twtime_list = []
-    missing_times = []; fallback_times = []; max_lead_used = 0
+    missing_times = []; member_fallbacks = 0; member_gaps = 0; max_lead_used = 0
 
     for vt in valid_times:
         init0 = vt.floor(str(int(cycle_base)) + 'h')   # latest cycle at/before vt
         slice_fmod = None
+        nfound = 0
 
-        for k in range(0, nback + 1):
-            init = init0 - pd.Timedelta(hours=k * cycle_base)
-            lead = int(round((vt - init).total_seconds() / 3600.))
-            if lead > max_lead:
+        for enm in range(0, nenm):
+            for k in range(0, nback + 1):
+                init = init0 - pd.Timedelta(hours=k * cycle_base)
+                lead = int(round((vt - init).total_seconds() / 3600.))
+                if lead > max_lead:
+                    break
+
+                cdate = init.strftime('%Y%m%d'); chour = init.strftime('%H')
+                fname = (root + "/GEFSv12Waves_" + cdate + chour + "/gefs.wave." + cdate + "." +
+                         str(int(enm)).zfill(2) + ".global.0p25.f" + str(int(lead)).zfill(3) + ".grib2")
+                if not os.path.isfile(fname):
+                    continue
+                try:
+                    aux, la, lo = _read_member(fname, xrvar)
+                except Exception:
+                    continue   # unreadable/corrupt -> older cycle for this member
+
+                if lat is None:
+                    lat = la; lon = lo
+                if slice_fmod is None:
+                    slice_fmod = np.full((nenm, lat.shape[0], lon.shape[0]), np.nan, 'f')
+                slice_fmod[enm, :, :] = aux
+                nfound += 1
+                if k > 0:
+                    member_fallbacks += 1
+                max_lead_used = max(max_lead_used, lead)
                 break
-
-            cdate = init.strftime('%Y%m%d'); chour = init.strftime('%H')
-            files = [(root + "/GEFSv12Waves_" + cdate + chour + "/gefs.wave." + cdate + "." +
-                      str(int(enm)).zfill(2) + ".global.0p25.f" + str(int(lead)).zfill(3) + ".grib2")
-                     for enm in range(0, nenm)]
-
-            # cycle/lead must be complete
-            if not all(os.path.isfile(f) for f in files):
+            else:
+                member_gaps += 1   # no break: nothing usable within max_lead
                 continue
+            # (break path lands here; nothing else to do)
 
-            try:
-                tmp = None
-                for enm in range(0, nenm):
-                    aux, la, lo = _read_member(files[enm], xrvar)
-                    if lat is None:
-                        lat = la; lon = lo
-                    if tmp is None:
-                        tmp = np.full((nenm, lat.shape[0], lon.shape[0]), np.nan, 'f')
-                    tmp[enm, :, :] = aux
-                slice_fmod = tmp
-            except Exception:
-                slice_fmod = None   # unreadable/corrupt -> try an older cycle
-                continue
-
-            if init != init0:
-                fallback_times.append((vt, init))
-            max_lead_used = max(max_lead_used, lead)
-            break
-
-        if slice_fmod is None:
+        if slice_fmod is None or nfound < min_members:
             missing_times.append(vt)
             continue
 
@@ -159,16 +159,16 @@ def build_gefs_truth(gefspath, fcycle, ltime1, ltime2, tres, nenm, fvarname,
         twtime_list.append(np.datetime64(vt))
 
     if len(tfmod_list) == 0:
-        sys.exit(" build_gefs_truth: no archived cycle found for the validation window "
+        sys.exit(" build_gefs_truth: no usable archived cycles for the validation window "
                  "(max lead " + str(max_lead) + "h).")
 
     print(" build_gefs_truth: " + str(len(tfmod_list)) + "/" + str(valid_times.shape[0]) +
           " valid times filled; max lead used " + str(max_lead_used) + "h; " +
-          str(len(fallback_times)) + " times used an older cycle than the latest grid cycle.")
+          str(member_fallbacks) + " member reads used an older cycle; " +
+          str(member_gaps) + " member slots left empty.")
     if len(missing_times) > 0:
-        print(" build_gefs_truth: WARNING, no cycle within " + str(max_lead) + "h for " +
-              str(len(missing_times)) + " valid times (first: " + str(missing_times[0]) +
-              ", last: " + str(missing_times[-1]) + ").")
+        print(" build_gefs_truth: WARNING, " + str(len(missing_times)) + " valid times dropped "
+              "(fewer than " + str(min_members) + " members available).")
 
     tfmod = np.array(tfmod_list); twtime = np.array(twtime_list)
     del tfmod_list, twtime_list
@@ -388,10 +388,13 @@ if __name__ == "__main__":
         title += pd.to_datetime(wtime[0] + np.timedelta64(ltime2, 'D')).strftime('%B %d, %Y') + "}$"
         cs = ax.contourf(lon, lat, gaussian_filter(probecdf[i, :, :], gft), levels=plevels, alpha=0.7,
                           cmap=cmap, zorder=1, transform=ccrs.PlateCarree())
+
         for j in range(0, nenm):
+            if np.all(np.isnan(hfmod[j, :, :])):
+                continue
             ax.contour(lon, lat, hfmod[j, :, :], levels=[qlev[i]], colors='dimgrey', alpha=0.7,
                        linewidths=1, zorder=2, transform=ccrs.PlateCarree())
- 
+        
         ax.contour(lon, lat, np.nanmean(hfmod, axis=0), levels=[qlev[i]], colors='k', linewidths=1.5,
                    zorder=2, transform=ccrs.PlateCarree())
 

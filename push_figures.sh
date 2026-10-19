@@ -8,7 +8,10 @@ VAL_BASE_DIR="/scratch4/AOML/aoml-phod/Ricardo.Campos/week2_sval/results"
 
 CYCLE="00"
 TODAY=$(date -u -d "yesterday" +%Y%m%d)
+<<<<<<< HEAD
 # TODAY=$(date -u +%Y%m%d)
+=======
+>>>>>>> 2e619ae53eb5679967d000c4a0bd34652a5a1307
 TARGET_DIR="${BASE_DIR}/${TODAY}${CYCLE}"
 
 VAL_LAG_DAYS=15
@@ -186,4 +189,5 @@ else
   git push origin main
   echo "Figures successfully pushed to GitHub!"
 fi
+
 

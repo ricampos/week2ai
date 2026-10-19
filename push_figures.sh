@@ -8,6 +8,10 @@ VAL_BASE_DIR="/scratch4/AOML/aoml-phod/Ricardo.Campos/week2_sval/results"
 
 CYCLE="00"
 TODAY=$(date -u -d "yesterday" +%Y%m%d)
+<<<<<<< HEAD
+# TODAY=$(date -u +%Y%m%d)
+=======
+>>>>>>> 2e619ae53eb5679967d000c4a0bd34652a5a1307
 TARGET_DIR="${BASE_DIR}/${TODAY}${CYCLE}"
 
 VAL_LAG_DAYS=15
@@ -47,17 +51,24 @@ EXPECTED_WS10=(
   "Pctl99_WS10_fcst07to14_ECMWF_MAIN.png"
 )
 
-# Automatic validation figures (GEFS only): 4 Hs + 3 WS10
+# Automatic validation figures (GEFS and ECMWF): 8 Hs + 6 WS10
 EXPECTED_VAL_HS=(
   "ProbMap_SpatialValidation_Hs_4.0_latest_GEFS_MAIN.png"
   "ProbMap_SpatialValidation_Hs_6.0_latest_GEFS_MAIN.png"
   "ProbMap_SpatialValidation_Hs_9.0_latest_GEFS_MAIN.png"
   "ProbMap_SpatialValidation_Hs_14.0_latest_GEFS_MAIN.png"
+  "ProbMap_SpatialValidation_Hs_4.0_latest_ECMWF_MAIN.png"
+  "ProbMap_SpatialValidation_Hs_6.0_latest_ECMWF_MAIN.png"
+  "ProbMap_SpatialValidation_Hs_9.0_latest_ECMWF_MAIN.png"
+  "ProbMap_SpatialValidation_Hs_14.0_latest_ECMWF_MAIN.png"
 )
 EXPECTED_VAL_WS10=(
   "ProbMap_SpatialValidation_WS10_34.0_latest_GEFS_MAIN.png"
   "ProbMap_SpatialValidation_WS10_48.0_latest_GEFS_MAIN.png"
   "ProbMap_SpatialValidation_WS10_64.0_latest_GEFS_MAIN.png"
+  "ProbMap_SpatialValidation_WS10_34.0_latest_ECMWF_MAIN.png"
+  "ProbMap_SpatialValidation_WS10_48.0_latest_ECMWF_MAIN.png"
+  "ProbMap_SpatialValidation_WS10_64.0_latest_ECMWF_MAIN.png"
 )
 
 check_all_figures_exist() {

@@ -49,7 +49,7 @@ PERSON OF CONTACT:
  Ricardo M Campos: ricardo.campos@noaa.gov
 
 """
-
+                
 import matplotlib
 import os
 matplotlib.use('Agg')
@@ -96,6 +96,31 @@ def read_gefs(auxltime, fvarname, nenm, mpath, fcdate, fchour):
             c += 1
     return fmod, lat, lon, wtime
 
+def _nc_field(f, model, auxvarn, mvar, indt):
+    '''
+    ECMWF/EnvCanada netcdf: fields for the time indices `indt`, shape (nt, lat, lon).
+    Single place for the processing used by BOTH the forecast reader and the
+    ground-truth reader (latitude flip, longitude roll, bad values).
+    Wind variables carry a size-1 level axis (time, 1, lat, lon); it is dropped here.
+    '''
+    if auxvarn == 'wind':
+        mvar_arr = np.array(mvar.split(' ')).astype('str')
+        auxu = np.array(f.variables[mvar_arr[0]][indt, :, :])
+        auxv = np.array(f.variables[mvar_arr[1]][indt, :, :])
+        aux = np.sqrt(auxu**2 + auxv**2)
+        if aux.ndim == 4:
+            aux = aux[:, 0, :, :]
+    else:
+        aux = np.array(f.variables[mvar][indt, :, :])
+        if aux.ndim == 4:
+            aux = aux[:, 0, :, :]
+    if model == 'ECMWF':
+        aux = np.flip(aux, axis=1)
+    half = len(f.variables['lon'][:]) // 2
+    aux = np.roll(aux, shift=half, axis=2)
+    aux[aux < -100] = np.nan; aux[aux > 100] = np.nan
+    return aux
+
 def read_mm(auxltime, model, fvarname, mvar, nenm, mpath, fcdate, fchour):
     '''Read ECMWF and EnvCanada netcdf ensemble forecast files.'''
     auxvarn = 'wind' if fvarname.upper() in ["WS10", "WND", "U10"] else 'wave'
@@ -115,18 +140,7 @@ def read_mm(auxltime, model, fvarname, mvar, nenm, mpath, fcdate, fchour):
                     fmod = np.zeros((len(indt), nenm, len(lat), len(lon)), 'f')
                     wtime = np.atleast_1d(np.datetime64(pd.to_datetime(fcdate + fchour, format='%Y%m%d%H')))
 
-                if auxvarn == 'wind':
-                    mvar_arr = np.array(omvar.split(' ')).astype('str')
-                    auxu = np.array(f.variables[mvar_arr[0]][indt, :, :])
-                    auxv = np.array(f.variables[mvar_arr[1]][indt, :, :])
-                    aux = np.sqrt(auxu**2 + auxv**2)[:, 0, :, :]
-                    if model == 'ECMWF':
-                        aux = np.flip(aux, axis=1)
-                else:
-                    aux = np.flip(np.array(f.variables[mvar][indt, :, :]), axis=1) if model == 'ECMWF' else np.array(f.variables[mvar][indt, :, :])
-
-                aux = np.roll(aux, shift=half, axis=2)
-                aux[aux < -100] = np.nan; aux[aux > 100] = np.nan
+                aux = _nc_field(f, model, auxvarn, omvar, indt)
                 fmod[:, enm, :, :] = aux
                 f.close()
             else:
@@ -139,7 +153,7 @@ def read_mm(auxltime, model, fvarname, mvar, nenm, mpath, fcdate, fchour):
 # --------------------------------------------------------------------------
 # GROUND TRUTH CONSTRUCTION
 # --------------------------------------------------------------------------
-def _read_member_truth(fname, model, xrvar, mvar, auxvarn):
+def _read_member_truth(fname, model, xrvar, mvar, auxvarn, lead):
     '''Helper reader for individual member ground-truth files.'''
     if model == 'GEFS':
         ds = xr.open_dataset(fname, engine='cfgrib', backend_kwargs={'indexpath': ''})
@@ -149,20 +163,16 @@ def _read_member_truth(fname, model, xrvar, mvar, auxvarn):
         ds.close()
     else:  # ECMWF / NetCDF
         f = nc.Dataset(fname)
-        la = np.sort(np.array(f.variables['lat'][:]))
-        lo = np.array(f.variables['lon'][:]) + 180.
-        half = len(lo) // 2
-        if auxvarn == 'wind':
-            mvar_arr = np.array(mvar.split(' ')).astype('str')
-            auxu = np.array(f.variables[mvar_arr[0]][0, :, :])
-            auxv = np.array(f.variables[mvar_arr[1]][0, :, :])
-            aux = np.sqrt(auxu**2 + auxv**2)
-            if model == 'ECMWF':
-                aux = np.flip(aux, axis=0)
-        else:
-            aux = np.flip(np.array(f.variables[mvar][0, :, :]), axis=0) if model == 'ECMWF' else np.array(f.variables[mvar][0, :, :])
-        aux = np.roll(aux, shift=half, axis=1)
-        f.close()
+        try:
+            ftime = np.array(f.variables['time'][:]).astype('int')
+            idx = np.where(ftime == int(lead))[0]
+            if idx.size == 0:
+                raise ValueError("lead " + str(lead) + " not in " + fname)
+            aux = _nc_field(f, model, auxvarn, mvar, idx[:1])[0].astype('float')
+            la = np.sort(np.array(f.variables['lat'][:]))
+            lo = np.array(f.variables['lon'][:]) + 180.
+        finally:
+            f.close()
     return aux, la, lo
 
 def build_truth(mpath, model, fcycle, ltime1, ltime2, tres, nenm, fvarname, mvar,
@@ -206,7 +216,7 @@ def build_truth(mpath, model, fcycle, ltime1, ltime2, tres, nenm, fvarname, mvar
                 if not os.path.isfile(fname):
                     continue
                 try:
-                    aux, la, lo = _read_member_truth(fname, model, xrvar, mvar, auxvarn)
+                    aux, la, lo = _read_member_truth(fname, model, xrvar, mvar, auxvarn, lead)
                 except Exception:
                     continue
 

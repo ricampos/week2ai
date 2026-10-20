@@ -80,7 +80,7 @@
     }
 
     /* Validation description box */
-    .val-note {
+    .val-note, .info-note {
       background: #eef2f7;
       border-left: 4px solid #003366;
       border-radius: 4px;
@@ -99,6 +99,17 @@
     }
     @media (max-width: 768px) {
       .grid-2col { grid-template-columns: 1fr; } /* Stack vertically on mobile screens */
+    }
+
+    /* 3-Column Comparison Grid (GEFS | ECMWF | Multi-model) */
+    .grid-3col {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 25px;
+    }
+    @media (max-width: 1000px) {
+      .grid-3col { grid-template-columns: 1fr; } /* Stack vertically on smaller screens */
     }
 
     .card { 
@@ -174,6 +185,11 @@
   <!-- TAB 1: PROBMAPS                            -->
   <!-- ========================================== -->
   <div id="ProbMaps" class="top-content active">
+
+    <p class="info-note">
+      The multi-model forecast combines the 31 GEFS and 51 ECMWF ensemble members into a single
+      82-member ensemble, from which the probabilities are computed.
+    </p>
     
     <!-- Sub Tabs: Hs vs WS10 -->
     <div class="sub-tab-container">
@@ -185,27 +201,31 @@
     <div id="Prob_Hs" class="sub-content active">
       
       <h3 class="row-header">Hs > 4.0m</h3>
-      <div class="grid-2col">
+      <div class="grid-3col">
         <div class="card"><h4>GEFS</h4><img src="figures/Hs/ProbMap_Hs_4.0_fcst07to14_GEFS_MAIN.png" alt="Hs 4.0m - GEFS" onclick="openModal(this)"></div>
         <div class="card"><h4>ECMWF</h4><img src="figures/Hs/ProbMap_Hs_4.0_fcst07to14_ECMWF_MAIN.png" alt="Hs 4.0m - ECMWF" onclick="openModal(this)"></div>
+        <div class="card"><h4>Multi-model (GEFS + ECMWF)</h4><img src="figures/Hs/ProbMap_Hs_4.0_fcst07to14_MULTI_MAIN.png" alt="Hs 4.0m - Multi-model" onclick="openModal(this)"></div>
       </div>
 
       <h3 class="row-header">Hs > 6.0m</h3>
-      <div class="grid-2col">
+      <div class="grid-3col">
         <div class="card"><h4>GEFS</h4><img src="figures/Hs/ProbMap_Hs_6.0_fcst07to14_GEFS_MAIN.png" alt="Hs 6.0m - GEFS" onclick="openModal(this)"></div>
         <div class="card"><h4>ECMWF</h4><img src="figures/Hs/ProbMap_Hs_6.0_fcst07to14_ECMWF_MAIN.png" alt="Hs 6.0m - ECMWF" onclick="openModal(this)"></div>
+        <div class="card"><h4>Multi-model (GEFS + ECMWF)</h4><img src="figures/Hs/ProbMap_Hs_6.0_fcst07to14_MULTI_MAIN.png" alt="Hs 6.0m - Multi-model" onclick="openModal(this)"></div>
       </div>
 
       <h3 class="row-header">Hs > 9.0m</h3>
-      <div class="grid-2col">
+      <div class="grid-3col">
         <div class="card"><h4>GEFS</h4><img src="figures/Hs/ProbMap_Hs_9.0_fcst07to14_GEFS_MAIN.png" alt="Hs 9.0m - GEFS" onclick="openModal(this)"></div>
         <div class="card"><h4>ECMWF</h4><img src="figures/Hs/ProbMap_Hs_9.0_fcst07to14_ECMWF_MAIN.png" alt="Hs 9.0m - ECMWF" onclick="openModal(this)"></div>
+        <div class="card"><h4>Multi-model (GEFS + ECMWF)</h4><img src="figures/Hs/ProbMap_Hs_9.0_fcst07to14_MULTI_MAIN.png" alt="Hs 9.0m - Multi-model" onclick="openModal(this)"></div>
       </div>
 
       <h3 class="row-header">Hs > 14.0m</h3>
-      <div class="grid-2col">
+      <div class="grid-3col">
         <div class="card"><h4>GEFS</h4><img src="figures/Hs/ProbMap_Hs_14.0_fcst07to14_GEFS_MAIN.png" alt="Hs 14.0m - GEFS" onclick="openModal(this)"></div>
         <div class="card"><h4>ECMWF</h4><img src="figures/Hs/ProbMap_Hs_14.0_fcst07to14_ECMWF_MAIN.png" alt="Hs 14.0m - ECMWF" onclick="openModal(this)"></div>
+        <div class="card"><h4>Multi-model (GEFS + ECMWF)</h4><img src="figures/Hs/ProbMap_Hs_14.0_fcst07to14_MULTI_MAIN.png" alt="Hs 14.0m - Multi-model" onclick="openModal(this)"></div>
       </div>
 
     </div>
@@ -214,21 +234,24 @@
     <div id="Prob_WS10" class="sub-content">
       
       <h3 class="row-header">WS10 > 34.0 kts</h3>
-      <div class="grid-2col">
+      <div class="grid-3col">
         <div class="card"><h4>GEFS</h4><img src="figures/WS10/ProbMap_WS10_34.0_fcst07to14_GEFS_MAIN.png" alt="WS10 34.0 kts - GEFS" onclick="openModal(this)"></div>
         <div class="card"><h4>ECMWF</h4><img src="figures/WS10/ProbMap_WS10_34.0_fcst07to14_ECMWF_MAIN.png" alt="WS10 34.0 kts - ECMWF" onclick="openModal(this)"></div>
+        <div class="card"><h4>Multi-model (GEFS + ECMWF)</h4><img src="figures/WS10/ProbMap_WS10_34.0_fcst07to14_MULTI_MAIN.png" alt="WS10 34.0 kts - Multi-model" onclick="openModal(this)"></div>
       </div>
 
       <h3 class="row-header">WS10 > 48.0 kts</h3>
-      <div class="grid-2col">
+      <div class="grid-3col">
         <div class="card"><h4>GEFS</h4><img src="figures/WS10/ProbMap_WS10_48.0_fcst07to14_GEFS_MAIN.png" alt="WS10 48.0 kts - GEFS" onclick="openModal(this)"></div>
         <div class="card"><h4>ECMWF</h4><img src="figures/WS10/ProbMap_WS10_48.0_fcst07to14_ECMWF_MAIN.png" alt="WS10 48.0 kts - ECMWF" onclick="openModal(this)"></div>
+        <div class="card"><h4>Multi-model (GEFS + ECMWF)</h4><img src="figures/WS10/ProbMap_WS10_48.0_fcst07to14_MULTI_MAIN.png" alt="WS10 48.0 kts - Multi-model" onclick="openModal(this)"></div>
       </div>
 
       <h3 class="row-header">WS10 > 64.0 kts</h3>
-      <div class="grid-2col">
+      <div class="grid-3col">
         <div class="card"><h4>GEFS</h4><img src="figures/WS10/ProbMap_WS10_64.0_fcst07to14_GEFS_MAIN.png" alt="WS10 64.0 kts - GEFS" onclick="openModal(this)"></div>
         <div class="card"><h4>ECMWF</h4><img src="figures/WS10/ProbMap_WS10_64.0_fcst07to14_ECMWF_MAIN.png" alt="WS10 64.0 kts - ECMWF" onclick="openModal(this)"></div>
+        <div class="card"><h4>Multi-model (GEFS + ECMWF)</h4><img src="figures/WS10/ProbMap_WS10_64.0_fcst07to14_MULTI_MAIN.png" alt="WS10 64.0 kts - Multi-model" onclick="openModal(this)"></div>
       </div>
 
     </div>
@@ -239,6 +262,10 @@
   <!-- TAB 2: PERCENTILES (Pctl)                  -->
   <!-- ========================================== -->
   <div id="Pctl" class="top-content">
+
+    <p class="info-note">
+      The multi-model percentiles are computed from the combined 82-member ensemble (31 GEFS + 51 ECMWF members).
+    </p>
     
     <!-- Sub Tabs: Hs vs WS10 -->
     <div class="sub-tab-container">
@@ -250,15 +277,17 @@
     <div id="Pctl_Hs" class="sub-content active">
       
       <h3 class="row-header">Percentile 95</h3>
-      <div class="grid-2col">
+      <div class="grid-3col">
         <div class="card"><h4>GEFS</h4><img src="figures/Hs/Pctl95_Hs_fcst07to14_GEFS_MAIN.png" alt="Pctl 95 Hs - GEFS" onclick="openModal(this)"></div>
         <div class="card"><h4>ECMWF</h4><img src="figures/Hs/Pctl95_Hs_fcst07to14_ECMWF_MAIN.png" alt="Pctl 95 Hs - ECMWF" onclick="openModal(this)"></div>
+        <div class="card"><h4>Multi-model (GEFS + ECMWF)</h4><img src="figures/Hs/Pctl95_Hs_fcst07to14_MULTI_MAIN.png" alt="Pctl 95 Hs - Multi-model" onclick="openModal(this)"></div>
       </div>
 
       <h3 class="row-header">Percentile 99</h3>
-      <div class="grid-2col">
+      <div class="grid-3col">
         <div class="card"><h4>GEFS</h4><img src="figures/Hs/Pctl99_Hs_fcst07to14_GEFS_MAIN.png" alt="Pctl 99 Hs - GEFS" onclick="openModal(this)"></div>
         <div class="card"><h4>ECMWF</h4><img src="figures/Hs/Pctl99_Hs_fcst07to14_ECMWF_MAIN.png" alt="Pctl 99 Hs - ECMWF" onclick="openModal(this)"></div>
+        <div class="card"><h4>Multi-model (GEFS + ECMWF)</h4><img src="figures/Hs/Pctl99_Hs_fcst07to14_MULTI_MAIN.png" alt="Pctl 99 Hs - Multi-model" onclick="openModal(this)"></div>
       </div>
 
     </div>
@@ -267,15 +296,17 @@
     <div id="Pctl_WS10" class="sub-content">
       
       <h3 class="row-header">Percentile 95</h3>
-      <div class="grid-2col">
+      <div class="grid-3col">
         <div class="card"><h4>GEFS</h4><img src="figures/WS10/Pctl95_WS10_fcst07to14_GEFS_MAIN.png" alt="Pctl 95 WS10 - GEFS" onclick="openModal(this)"></div>
         <div class="card"><h4>ECMWF</h4><img src="figures/WS10/Pctl95_WS10_fcst07to14_ECMWF_MAIN.png" alt="Pctl 95 WS10 - ECMWF" onclick="openModal(this)"></div>
+        <div class="card"><h4>Multi-model (GEFS + ECMWF)</h4><img src="figures/WS10/Pctl95_WS10_fcst07to14_MULTI_MAIN.png" alt="Pctl 95 WS10 - Multi-model" onclick="openModal(this)"></div>
       </div>
 
       <h3 class="row-header">Percentile 99</h3>
-      <div class="grid-2col">
+      <div class="grid-3col">
         <div class="card"><h4>GEFS</h4><img src="figures/WS10/Pctl99_WS10_fcst07to14_GEFS_MAIN.png" alt="Pctl 99 WS10 - GEFS" onclick="openModal(this)"></div>
         <div class="card"><h4>ECMWF</h4><img src="figures/WS10/Pctl99_WS10_fcst07to14_ECMWF_MAIN.png" alt="Pctl 99 WS10 - ECMWF" onclick="openModal(this)"></div>
+        <div class="card"><h4>Multi-model (GEFS + ECMWF)</h4><img src="figures/WS10/Pctl99_WS10_fcst07to14_MULTI_MAIN.png" alt="Pctl 99 WS10 - Multi-model" onclick="openModal(this)"></div>
       </div>
 
     </div>

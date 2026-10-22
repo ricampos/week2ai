@@ -7,6 +7,7 @@ ensemble_lag_prob.py
 VERSION AND LAST UPDATE:
  v1.0  09/16/2025
  v2.0  01/15/2026
+ v2.1  10/21/2026
 
 PURPOSE:
  Experiments with ensemble lag, including validation and comparisons.
@@ -20,8 +21,9 @@ DEPENDENCIES:
  Check https://github.com/NOAA-EMC/gefswaves_reforecast/tree/main/fuzzy_verification for wcpval.py
 
 AUTHOR and DATE:
- 09/16/2025: Ricardo M. Campos, first version based on fuzzy_verification_GEFS.py
+ 09/16/2025: Ricardo M. Campos, first version based on fuzzy_verification_GEFS.py.
  01/15/2026: Ricardo M. Campos, complete validation statistics (probabilistic in this code).
+ 10/21/2026: Ricardo M. Campos, improve memory load and efficiency.
 
 PERSON OF CONTACT:
  Ricardo M Campos: ricardo.campos@noaa.gov
@@ -47,20 +49,20 @@ matplotlib.rc('xtick', labelsize=sl); matplotlib.rc('ytick', labelsize=sl); matp
 if __name__ == "__main__":
 
     # point manual selection (index)
-    # bid = np.array([24,25,31]).astype('int')  # Atlantic na_center_north
-    bid = np.array([2,10,13]).astype('int')  # Pacific np_center_north
+    bid = np.array([12,15,16,19,20,21,22,24,25,31]).astype('int')  # Atlantic
+    # bid = np.array([1, 3, 4, 5, 8, 10, 13]).astype('int')  # Pacific
     lbid = len(bid)
     # variable (u10 or hs)
     wvar='hs'
     # Forecast Lead Time (Day) and intervall
     ltime1=7; ltime2=14
     # output path
-    # opath="/work/noaa/marine/ricardo.campos/work/analysis/4postproc/ensemble_lag/Atlantic/prob"
-    opath="/work/noaa/marine/ricardo.campos/work/analysis/4postproc/ensemble_lag/Pacific/prob"
+    opath="/work/noaa/marine/ricardo.campos/work/analysis/4postproc/ensemble_lag/Atlantic/prob"
+    # opath="/work/noaa/marine/ricardo.campos/work/analysis/4postproc/ensemble_lag/Pacific/prob"
 
     # Observations
-    # fobsname="/work/noaa/marine/ricardo.campos/work/analysis/3assessments/fuzzy_verification/data/Atlantic/Altimeter.Buoy.PointExtract.Atlantic_20201001to20250101.nc"
-    fobsname="/work/noaa/marine/ricardo.campos/work/analysis/3assessments/fuzzy_verification/data/Pacific/Altimeter.Buoy.PointExtract.Pacific_20201001to20250101.nc"
+    fobsname="/work/noaa/marine/ricardo.campos/work/analysis/3assessments/fuzzy_verification/data/Atlantic/Altimeter.Buoy.PointExtract_20201001to20260101.nc"
+    # fobsname="/work/noaa/marine/ricardo.campos/work/analysis/3assessments/fuzzy_verification/data/Pacific/Altimeter.Buoy.PointExtract_20201001to20260101.nc"
 
     # obs = read_obs(fobsname,wvar,"mean")
     obs = read_obs(fobsname,wvar,"max")
@@ -82,29 +84,26 @@ if __name__ == "__main__":
     print(" Read yaml configuration file, OK")
 
     # -------------------------------------
-    # READ DATA
-    print(" Reading Model Data ...")
-    # list of netcdf files generated with buildfuzzydataset.py
-    # ls -d $PWD/*.nc > list.txt &
-    wlist = np.atleast_1d(np.loadtxt("list.txt",dtype=str)) 
-    gdata = read_data(wlist,bid,0,np.inf,wvar)
+    # READ DATA + Bias Correction
+    print(" Reading Model Data + Bias Correction ...")
+    wlist = np.atleast_1d(np.loadtxt("list.txt",dtype=str))
+    gdata, gefs_hindcast_bc = read_data_and_bias_correction_window(
+        wlist, bid, 0, np.inf, wvar, obs, spctl, opath, spws=spws, include_buoy="yes")
+    print(" Reading Model Data + Bias Correction, OK")
 
     print(" Prepare arrays ...")
     indlat = gdata['indlat']; indlon = gdata['indlon']
+    gspws = gdata['gspws']
     lstw=int(len(wlist))
     lft = gdata['lft']; lct = len(gdata['ctime'])
-    llatm = len(gdata['latm'][0,:]); llonm = len(gdata['lonm'][0,:])
+    # Window dims come from the actual forecast array, not the full station grid
+    llatm = gdata['gefs_forecast'].shape[-2]
+    llonm = gdata['gefs_forecast'].shape[-1]
 
     gdata['lonm'][gdata['lonm']>180] = gdata['lonm'][gdata['lonm']>180]-360.
 
-    gspws=int(np.floor(spws/np.diff(gdata['latm']).mean())/2)
-
-    print(" Bias correction and DA ...")
-    # Bias correction
-    gefs_hindcast_bc = bias_correction(gdata,obs,spctl,wvar,opath,include_buoy="yes")
-    # Data Assimilation
+    print(" Data Assimilation ...")
     gefs_hindcast_da, bda, sda = data_assimilation(gefs_hindcast_bc,gdata,obs,spctl,wvar,opath,include_buoy="yes")
-    del gefs_hindcast_bc
     print(" Bias correction and DA Ok")
 
     # Select Week-2 interval
@@ -211,10 +210,20 @@ if __name__ == "__main__":
     print(" Statistics have been computed. Starting plots ...")
 
     # PLOTS --------------
-
     lagcol = ['y','c','lime','k','b','m','darkgreen','r']
     lagmarl = [':',':','-.','--','-.','--','-.','--']
     lagzo = np.array([3,3,4,5,4,4,4,3]).astype('int')
+
+    # Time lag (hours) associated with each ensemble size in ind_elag
+    t_elag = np.array([0, 0, 0, 0, 12, 24, 36, 48])
+
+    def add_lag_axis(ax):
+        """Secondary x-axis on top showing the time lag (hours) for each ensemble size."""
+        secax = ax.secondary_xaxis('top')
+        secax.set_xticks(ind_elag[:len(t_elag)])
+        secax.set_xticklabels(t_elag)
+        secax.set_xlabel("Time Lag in hours", size=sl)
+        return secax
 
     # Categorical Val
     for i in range(0,len(qlev)):
@@ -226,6 +235,7 @@ if __name__ == "__main__":
             ax1.set_ylabel("CSI", color='k')
             ax1.tick_params(axis='y', labelcolor='k')
             ax1.set_xlabel("Ensemble Size")
+            add_lag_axis(ax1)
             ax1.grid(c='grey', ls='--', alpha=0.3, zorder=1)
 
             ax2 = ax1.twinx()
@@ -250,8 +260,8 @@ if __name__ == "__main__":
     fig1, ax = plt.subplots(figsize=(6.5,6))
     ax.plot(ind_elag, mcrps, color='k', lw=2, zorder=3) 
     ax.plot(ind_elag, mcrps, 'k.') 
-    # ax.set_xlim(-0.01, 1.01); ax.set_ylim(-0.01, 1.01) 
     ax.set_xlabel('Ensemble Size')
+    add_lag_axis(ax)
     ax.set_ylabel('CRPS')
     plt.grid(c='grey', ls='--', alpha=0.3, zorder=1)
     plt.savefig("CRPS.png", dpi=200, facecolor='w', edgecolor='w', orientation='portrait',
@@ -268,6 +278,7 @@ if __name__ == "__main__":
         ax.plot(ind_elag, briers[:,i], 'k.') 
         # ax.set_xlim(-0.01, 1.01); ax.set_ylim(-0.01, 1.01) 
         ax.set_xlabel('Ensemble Size')
+        add_lag_axis(ax)
         ax.set_ylabel('Brier Score')
         plt.grid(c='grey', ls='--', alpha=0.3, zorder=1)
         plt.savefig("BrierScore_"+repr(qlev[i])+".png", dpi=200, facecolor='w', edgecolor='w', orientation='portrait',

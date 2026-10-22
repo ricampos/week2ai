@@ -7,6 +7,7 @@ ensemble_lag_det.py
 VERSION AND LAST UPDATE:
  v1.0  09/16/2025
  v2.0  01/15/2026
+ v2.1  10/08/2026
 
 PURPOSE:
  Experiments with ensemble lag, including validation and comparisons.
@@ -22,6 +23,7 @@ DEPENDENCIES:
 AUTHOR and DATE:
  09/16/2025: Ricardo M. Campos, first version based on fuzzy_verification_GEFS.py
  01/15/2026: Ricardo M. Campos, complete validation statistics.
+ 10/08/2026: Ricardo M. Campos, improve memory load and efficiency.
 
 PERSON OF CONTACT:
  Ricardo M Campos: ricardo.campos@noaa.gov
@@ -37,6 +39,7 @@ import matplotlib.pyplot as plt
 from scipy.ndimage.filters import gaussian_filter
 import yaml
 from wcpval import *
+import gc
 import warnings; warnings.filterwarnings("ignore")
 
 sl=13
@@ -53,6 +56,8 @@ def rankhist(model,obs,ftag):
             model=np.copy(model[ind[0],:]).T; del ind
         else:
             raise ValueError(' No quality data available.')
+
+        model = model + (np.nanmean(obs) - np.nanmean(model))
 
         combined=np.vstack((obs[np.newaxis],model))
         ranks=np.apply_along_axis(lambda x: rankdata(x,method='min'),0,combined)
@@ -81,8 +86,8 @@ def rankhist(model,obs,ftag):
 if __name__ == "__main__":
 
     # point manual selection (index)
-    # bid = np.array([24,25,31]).astype('int')  # Atlantic na_center_north
-    bid = np.array([2,10,11,13]).astype('int')  # Pacific np_center_north
+    # bid = np.array([12,15,16,19,20,21,22,24,25,31]).astype('int')  # Atlantic
+    bid = np.array([1, 3, 4, 5, 8, 10, 13]).astype('int')  # Pacific
     lbid = len(bid)
     # variable (u10 or hs)
     wvar='hs'
@@ -95,8 +100,8 @@ if __name__ == "__main__":
     ftag=opath+"/ValidationEnsLag_"+wvar+"_"
 
     # Observations
-    # fobsname="/work/noaa/marine/ricardo.campos/work/analysis/3assessments/fuzzy_verification/data/Atlantic/Altimeter.Buoy.PointExtract.Atlantic_20201001to20250101.nc"
-    fobsname="/work/noaa/marine/ricardo.campos/work/analysis/3assessments/fuzzy_verification/data/Pacific/Altimeter.Buoy.PointExtract.Pacific_20201001to20250101.nc"
+    # fobsname="/work/noaa/marine/ricardo.campos/work/analysis/3assessments/fuzzy_verification/data/Atlantic/Altimeter.Buoy.PointExtract_20201001to20260101.nc"
+    fobsname="/work/noaa/marine/ricardo.campos/work/analysis/3assessments/fuzzy_verification/data/Pacific/Altimeter.Buoy.PointExtract_20201001to20260101.nc"
 
     # obs = read_obs(fobsname,wvar,"mean")
     obs = read_obs(fobsname,wvar,"max")
@@ -119,16 +124,14 @@ if __name__ == "__main__":
 
     # -------------------------------------
     # READ DATA
-    print(" Reading Model Data ...")
-    # list of netcdf files generated with buildfuzzydataset.py
-    # ls -d $PWD/*.nc > list.txt &
-    wlist = np.atleast_1d(np.loadtxt("list.txt",dtype=str)) 
-    gdata = read_data(wlist,bid,ltime1,ltime2,wvar)
+    print(" Reading Model Data + Bias Correction ...")
+    wlist = np.atleast_1d(np.loadtxt("list.txt",dtype=str))
+    gdata, gefs_hindcast_bc = read_data_and_bias_correction(
+        wlist, bid, ltime1, ltime2, wvar, obs, spctl, opath, include_buoy="yes")
     indlat = gdata['indlat']; indlon = gdata['indlon']
-    print(" Reading Model Data, OK")
+    print(" Reading Model Data + Bias Correction, OK")
 
     print(" Prepare arrays ...")
-    # lengths
     lstw=int(len(wlist))
     lft = gdata['lft']; lct = len(gdata['ctime'])
     llatm = len(gdata['latm'][0,:]); llonm = len(gdata['lonm'][0,:])
@@ -136,17 +139,13 @@ if __name__ == "__main__":
 
     gdata['lonm'][gdata['lonm']>180] = gdata['lonm'][gdata['lonm']>180]-360.
 
-    print(" Bias correction and DA ...")
-    # Bias correction
-    gefs_hindcast_bc = bias_correction(gdata,obs,spctl,wvar,opath,include_buoy="yes")
-    # Data Assimilation
+    print(" Data Ingestion/Assimilation ...")
     gefs_hindcast_da, bda, sda = data_assimilation(gefs_hindcast_bc,gdata,obs,spctl,wvar,opath,include_buoy="yes")
 
     print(" Ensemble Lag mount ...")
-    # ground truth
     gefs_hindcast = np.copy(gefs_hindcast_da)
-    # center point of the spatial window around the target location
-    gefs = gdata['gefs_forecast'][:,:,:,:,gdata['indlat'],gdata['indlon']]
+    gefs = gdata['gefs_forecast']
+
     elag = np.arange(0,2*24+1,12) # max of 2 days: goal is week2 and limit is 16 days.
     g_lg = np.zeros((gdata['ftime'].shape[0],len(gdata['stations']),gdata['ftime'].shape[1],len(gdata['ensm'])*len(elag)),'f')*np.nan
     for i in range(len(elag),gdata['ftime'].shape[0]):
@@ -216,12 +215,14 @@ if __name__ == "__main__":
 
     lagcol = ['y','c','lime','k','b','m','darkgreen','r']
     lagmarl = [':',':','-.','--','-.','--','-.','--']
+    t_elag = np.array([0,0,0,0,12,24,36,48])
+    t_elags = np.array(['0h','0h','0h','0h','12h','24h','36h','48h'])
 
     #
     fig1 = plt.figure(1,figsize=(8,5)); ax = fig1.add_subplot(111)
-    ax.plot(frtags,np.nanmean(errm[0,:,:,0],axis=1),'grey',linestyle='--',label='Ctrl', linewidth=2.,zorder=2)
+    ax.plot(frtags,np.nanmean(errm[0,:,:,0],axis=1),'grey',linestyle='--',label=t_elags[0]+"_Ctrl", linewidth=2.,zorder=2)
     for i in range(0,len(ind_elag)):
-        ax.plot(frtags,np.nanmean(errm[i+1,:,:,0],axis=1),lagcol[i],linestyle=lagmarl[i],label="EM_"+repr(ind_elag[i])+"m", linewidth=2.,zorder=2)
+        ax.plot(frtags,np.nanmean(errm[i+1,:,:,0],axis=1),lagcol[i],linestyle=lagmarl[i],label=t_elags[i]+"_"+repr(ind_elag[i])+"m", linewidth=2.,zorder=2)
 
     ax.set_xticks(np.arange(1, 14 + 1, 1))
     ax.set_xlabel('Forecast Lead Time (Days)',size=sl)
@@ -236,9 +237,9 @@ if __name__ == "__main__":
 
     #
     fig1 = plt.figure(1,figsize=(8,5)); ax = fig1.add_subplot(111)
-    ax.plot(frtags,np.nanmean(errm[0,:,:,1],axis=1),'grey',linestyle='--',label='Ctrl', linewidth=2.,zorder=2)
+    ax.plot(frtags,np.nanmean(errm[0,:,:,1],axis=1),'grey',linestyle='--',label=t_elags[0]+"_Ctrl", linewidth=2.,zorder=2)
     for i in range(0,len(ind_elag)):
-        ax.plot(frtags,np.nanmean(errm[i+1,:,:,1],axis=1),lagcol[i],linestyle=lagmarl[i],label="EM_"+repr(ind_elag[i])+"m", linewidth=2.,zorder=2)
+        ax.plot(frtags,np.nanmean(errm[i+1,:,:,1],axis=1),lagcol[i],linestyle=lagmarl[i],label=t_elags[i]+"_"+repr(ind_elag[i])+"m", linewidth=2.,zorder=2)
 
     ax.set_xticks(np.arange(1, 14 + 1, 1))
     ax.set_xlabel('Forecast Lead Time (Days)',size=sl)
@@ -253,9 +254,9 @@ if __name__ == "__main__":
 
     #
     fig1 = plt.figure(1,figsize=(8,5)); ax = fig1.add_subplot(111)
-    ax.plot(frtags,np.nanmean(errm[0,:,:,4],axis=1),'grey',linestyle='--',label='Ctrl', linewidth=2.,zorder=2)
+    ax.plot(frtags,np.nanmean(errm[0,:,:,4],axis=1),'grey',linestyle='--',label=t_elags[0]+"_Ctrl", linewidth=2.,zorder=2)
     for i in range(0,len(ind_elag)):
-        ax.plot(frtags,np.nanmean(errm[i+1,:,:,4],axis=1),lagcol[i],linestyle=lagmarl[i],label="EM_"+repr(ind_elag[i])+"m", linewidth=2.,zorder=2)
+        ax.plot(frtags,np.nanmean(errm[i+1,:,:,4],axis=1),lagcol[i],linestyle=lagmarl[i],label=t_elags[i]+"_"+repr(ind_elag[i])+"m", linewidth=2.,zorder=2)
 
     ax.set_xticks(np.arange(1, 14 + 1, 1))
     ax.set_xlabel('Forecast Lead Time (Days)',size=sl)
@@ -270,9 +271,9 @@ if __name__ == "__main__":
 
     #
     fig1 = plt.figure(1,figsize=(8,5)); ax = fig1.add_subplot(111)
-    ax.plot(frtags,np.nanmean(errm[0,:,:,5],axis=1),'grey',linestyle='--',label='Ctrl', linewidth=2.,zorder=2)
+    ax.plot(frtags,np.nanmean(errm[0,:,:,5],axis=1),'grey',linestyle='--',label=t_elags[0]+"_Ctrl", linewidth=2.,zorder=2)
     for i in range(0,len(ind_elag)):
-        ax.plot(frtags,np.nanmean(errm[i+1,:,:,5],axis=1),lagcol[i],linestyle=lagmarl[i],label="EM_"+repr(ind_elag[i])+"m", linewidth=2.,zorder=2)
+        ax.plot(frtags,np.nanmean(errm[i+1,:,:,5],axis=1),lagcol[i],linestyle=lagmarl[i],label=t_elags[i]+"_"+repr(ind_elag[i])+"m", linewidth=2.,zorder=2)
 
     ax.set_xticks(np.arange(1, 14 + 1, 1))
     ax.set_xlabel('Forecast Lead Time (Days)',size=sl)
@@ -287,9 +288,9 @@ if __name__ == "__main__":
 
     #
     fig1 = plt.figure(1,figsize=(8,5)); ax = fig1.add_subplot(111)
-    ax.plot(frtags,np.nanmean(errm[0,:,:,7],axis=1),'grey',linestyle='--',label='Ctrl', linewidth=2.,zorder=2)
+    ax.plot(frtags,np.nanmean(errm[0,:,:,7],axis=1),'grey',linestyle='--',label=t_elags[0]+"_Ctrl", linewidth=2.,zorder=2)
     for i in range(0,len(ind_elag)):
-        ax.plot(frtags,np.nanmean(errm[i+1,:,:,7],axis=1),lagcol[i],linestyle=lagmarl[i],label="EM_"+repr(ind_elag[i])+"m", linewidth=2.,zorder=2)
+        ax.plot(frtags,np.nanmean(errm[i+1,:,:,7],axis=1),lagcol[i],linestyle=lagmarl[i],label=t_elags[i]+"_"+repr(ind_elag[i])+"m", linewidth=2.,zorder=2)
 
     ax.set_xticks(np.arange(1, 14 + 1, 1))
     ax.set_xlabel('Forecast Lead Time (Days)',size=sl)
@@ -308,7 +309,7 @@ if __name__ == "__main__":
     # ax.plot(frtags,(np.nanmean(errm[0,:,:,0],axis=1)-np.nanmean(errm[indstdrd+1,:,:,0],axis=1)),'grey',linestyle='--',label='Ctrl', linewidth=2.,zorder=2)
     for i in range(0,len(ind_elag)):
         if i!=indstdrd:
-            ax.plot(frtags,(np.nanmean(errm[i+1,:,:,0],axis=1)-np.nanmean(errm[indstdrd+1,:,:,0],axis=1)),lagcol[i],linestyle=lagmarl[i],label="EM_"+repr(ind_elag[i])+"m", linewidth=2.,zorder=2)
+            ax.plot(frtags,(np.nanmean(errm[i+1,:,:,0],axis=1)-np.nanmean(errm[indstdrd+1,:,:,0],axis=1)),lagcol[i],linestyle=lagmarl[i],label=t_elags[i]+"_"+repr(ind_elag[i])+"m", linewidth=2.,zorder=2)
 
     ax.axhline(y=0, color='k', linewidth=1)
     ax.set_xticks(np.arange(1, 14 + 1, 1))
@@ -326,7 +327,7 @@ if __name__ == "__main__":
     saux=[]
     for i in range(0,len(ind_elag)):
         if i!=indstdrd:
-            ax.plot(frtags,(np.nanmean(errm[i+1,:,:,1],axis=1)-np.nanmean(errm[indstdrd+1,:,:,1],axis=1)),lagcol[i],linestyle=lagmarl[i],label="EM_"+repr(ind_elag[i])+"m", linewidth=2.,zorder=2)
+            ax.plot(frtags,(np.nanmean(errm[i+1,:,:,1],axis=1)-np.nanmean(errm[indstdrd+1,:,:,1],axis=1)),lagcol[i],linestyle=lagmarl[i],label=t_elags[i]+"_"+repr(ind_elag[i])+"m", linewidth=2.,zorder=2)
             saux=np.append(saux,(np.nanmean(errm[i+1,:,:,1],axis=1)-np.nanmean(errm[indstdrd+1,:,:,1],axis=1)))
 
     ax.axhline(y=0, color='k', linewidth=1)
@@ -347,7 +348,7 @@ if __name__ == "__main__":
     saux=[]
     for i in range(0,len(ind_elag)):
         if i!=indstdrd:
-            ax.plot(frtags,(np.nanmean(errm[i+1,:,:,4],axis=1)-np.nanmean(errm[indstdrd+1,:,:,4],axis=1)),lagcol[i],linestyle=lagmarl[i],label="EM_"+repr(ind_elag[i])+"m", linewidth=2.,zorder=2)
+            ax.plot(frtags,(np.nanmean(errm[i+1,:,:,4],axis=1)-np.nanmean(errm[indstdrd+1,:,:,4],axis=1)),lagcol[i],linestyle=lagmarl[i],label=t_elags[i]+"_"+repr(ind_elag[i])+"m", linewidth=2.,zorder=2)
             saux=np.append(saux,(np.nanmean(errm[i+1,:,:,4],axis=1)-np.nanmean(errm[indstdrd+1,:,:,4],axis=1)))
 
     ax.axhline(y=0, color='k', linewidth=1)
@@ -367,7 +368,7 @@ if __name__ == "__main__":
     saux=[]
     for i in range(0,len(ind_elag)):
         if i!=indstdrd:
-            ax.plot(frtags,(np.nanmean(errm[i+1,:,:,5],axis=1)-np.nanmean(errm[indstdrd+1,:,:,5],axis=1)),lagcol[i],linestyle=lagmarl[i],label="EM_"+repr(ind_elag[i])+"m", linewidth=2.,zorder=2)
+            ax.plot(frtags,(np.nanmean(errm[i+1,:,:,5],axis=1)-np.nanmean(errm[indstdrd+1,:,:,5],axis=1)),lagcol[i],linestyle=lagmarl[i],label=t_elags[i]+"_"+repr(ind_elag[i])+"m", linewidth=2.,zorder=2)
             saux=np.append(saux,(np.nanmean(errm[i+1,:,:,5],axis=1)-np.nanmean(errm[indstdrd+1,:,:,5],axis=1)))
 
     ax.axhline(y=0, color='k', linewidth=1)
@@ -387,7 +388,7 @@ if __name__ == "__main__":
     saux=[]
     for i in range(0,len(ind_elag)):
         if i!=indstdrd:
-            ax.plot(frtags,(np.nanmean(errm[i+1,:,:,7],axis=1)-np.nanmean(errm[indstdrd+1,:,:,7],axis=1)),lagcol[i],linestyle=lagmarl[i],label="EM_"+repr(ind_elag[i])+"m", linewidth=2.,zorder=2)
+            ax.plot(frtags,(np.nanmean(errm[i+1,:,:,7],axis=1)-np.nanmean(errm[indstdrd+1,:,:,7],axis=1)),lagcol[i],linestyle=lagmarl[i],label=t_elags[i]+"_"+repr(ind_elag[i])+"m", linewidth=2.,zorder=2)
             saux=np.append(saux,(np.nanmean(errm[i+1,:,:,7],axis=1)-np.nanmean(errm[indstdrd+1,:,:,7],axis=1)))
 
     ax.axhline(y=0, color='k', linewidth=1)
@@ -405,30 +406,32 @@ if __name__ == "__main__":
 
     # ---------------------------
     print(" Spread ...")
-
     for i in range(0,frintervals.shape[0]):
-
-        ensprd = np.zeros((len(ind_elag)),'f')*np.nan
-
-        for j in range(0,len(ind_elag)):
-
-            m = g_lg[:,:,frintervals[i,:][0]:frintervals[i,:][1],:][:,:,:,0:ind_elag[j]]; m=m.reshape(m.shape[0]*m.shape[1]*m.shape[2],m.shape[3])
-            ensprd[j] = np.nanmean(np.std(m,1)); del m
+        ensprd = np.zeros((len(ind_elag)), 'f') * np.nan
+        for j in range(0, len(ind_elag)):
+            m = g_lg[:, :, frintervals[i, :][0]:frintervals[i, :][1], :][:, :, :, 0:ind_elag[j]]
+            m = m.reshape(m.shape[0] * m.shape[1] * m.shape[2], m.shape[3])
+            ensprd[j] = np.nanmean(np.std(m, 1))
+            del m
 
         fig1, ax = plt.subplots(figsize=(6, 5))
         ax.plot(ind_elag, ensprd, color='k', marker='.', linestyle='', linewidth=2., zorder=2)
-        ax.plot(ind_elag, ensprd, color='k', linestyle='-', linewidth=2.,label='Day'+repr(i+1), zorder=2)
-        ax.set_xlim(1, ind_elag.max()+1)
-        ax.set_xlabel("Ensemble Size")
-        ax.set_ylabel("Spread")
+        ax.plot(ind_elag, ensprd, color='k', linestyle='-', linewidth=2., label='Day' + repr(i + 1), zorder=2)
+        ax.set_xlim(1, ind_elag.max() + 1)
+        ax.set_xlabel("Ensemble Size", size=sl); ax.set_ylabel("Spread")
+        # --- TOP X-AXIS IMPLEMENTATION ---
+        t_elag = np.array([0, 0, 0, 0, 12, 24, 36, 48])
+        secax = ax.secondary_xaxis('top')
+        secax.set_xticks(ind_elag[:len(t_elag)])  # Place ticks at positions corresponding to ind_elag
+        secax.set_xticklabels(t_elag)             # Display t_elag values on top
+        secax.set_xlabel("Time Lag in hours", size=sl)
+        # ---------------------------------
         ax.legend(fontsize=sl)
-        plt.tight_layout(); # plt.axis('tight') 
         plt.grid(c='grey', ls='--', alpha=0.3, zorder=1)
-        plt.savefig("SpredXEnsSize_Day"+str(i+1).zfill(2)+".png", dpi=200, facecolor='w', edgecolor='w', orientation='portrait',
+        plt.tight_layout()
+        plt.savefig("SpredXEnsSize_Day" + str(i + 1).zfill(2) + ".png", dpi=200, facecolor='w', edgecolor='w', orientation='portrait',
                     format='png', bbox_inches='tight', pad_inches=0.1)
         plt.close('all')
-
-        del ensprd
 
 
     print(" Rank Histogram ...")

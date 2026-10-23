@@ -11,6 +11,7 @@ VERSION AND LAST UPDATE:
  v1.3  01/10/2025
  v1.4  05/01/2025
  v1.5  07/08/2025
+ v2.0  10/08/2026
 
 PURPOSE:
  Validation of long-term probabilistic wave forecasts using 
@@ -27,14 +28,15 @@ DEPENDENCIES:
  See the imports below.
 
 AUTHOR and DATE:
- 10/30/2023: Ricardo M. Campos, first version, named wprob.py
+ 10/30/2023: Ricardo M. Campos, first version, named wprob.py.
  11/03/2023: Ricardo M. Campos, fuzzy verification including categorical 
   and probabilistic assessments.
- 05/21/2024: Ricardo M. Campos, renamed to wcpval.py, new reliability curve plot
+ 05/21/2024: Ricardo M. Campos, renamed to wcpval.py, new reliability curve plot.
  01/10/2025: Ricardo M. Campos, climatology and persistence added to reliability diagrams and ROC
   plots. New updates added to the reliability diagram plots.
- 05/01/2025: Ricardo M. Campos, edit in read_data (dependence on NDBC buoy data has been removed)
- 07/08/2025: Ricardo M. Campos, bias correction applied to the hindcast used as ground truth
+ 05/01/2025: Ricardo M. Campos, edit in read_data (dependence on NDBC buoy data has been removed).
+ 07/08/2025: Ricardo M. Campos, bias correction applied to the hindcast used as ground truth.
+ 10/08/2026: Ricardo M. Campos, added new functions to improve memory load and efficiency.
 
 PERSON OF CONTACT:
  Ricardo M Campos: ricardo.campos@noaa.gov
@@ -50,6 +52,8 @@ import numpy as np
 import pandas as pd
 import pickle
 import sys
+from concurrent.futures import ProcessPoolExecutor, as_completed
+import os
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from sklearn.metrics import roc_curve, auc
 from sklearn.calibration import calibration_curve
@@ -73,57 +77,6 @@ pcolors = np.array(['navy', 'firebrick', 'dimgrey', 'darkgreen', 'fuchsia', 'gol
 
 lstl  = np.array(['-','--','-.'])
 
-# READ DATA
-def read_data(wlist,bid,ltime1,ltime2,wvar):
-
-    lstw=int(len(wlist))
-    f=nc.Dataset(wlist[0])    
-    # stations = np.array(f.variables['ID'][bid]).astype('str')
-    stations = np.array([f.variables['ID'][i] for i in bid]).astype('str')
-    latm = f.variables['lat'][bid,:]; lonm = f.variables['lon'][bid,:]
-    ensm = f.variables['ensemble_member'][:]
-    indlat = int(np.floor(len(latm[0,:])/2))
-    indlon = int(np.floor(len(lonm[0,:])/2))
-    auxt = np.array(f.variables['time'][:])
-    # week 2 forecast
-    axt = np.array(auxt-auxt.min())/3600.
-    indt = np.where( (axt>=ltime1*24) & (axt<=ltime2*24) )[0]
-    f.close(); del f, auxt, axt
-
-    # read data
-    for i in range(0,lstw):
-
-        f=nc.Dataset(wlist[i])    
-
-        if i==0:
-            ctime = np.zeros((len(wlist)),'double')*np.nan
-            ftime = np.zeros((len(wlist),len(indt)),'double')*np.nan
-            fshape = f.variables[wvar+"_gefs_forecast"].shape
-            gefs_hindcast = np.zeros((len(wlist),len(bid),len(indt),fshape[2],fshape[3],fshape[4]),'f')*np.nan
-            gefs_forecast = np.zeros((len(wlist),len(bid),len(indt),fshape[2],fshape[3],fshape[4]),'f')*np.nan
-            gefs_forecast_p = np.zeros((len(wlist),len(bid),len(indt),fshape[2],fshape[3],fshape[4]),'f')*np.nan
-            del fshape
-
-        ftime[i,:] = np.array(f.variables['time'][indt]).astype('double')
-        ctime[i] = np.double(f.variables['time'][0])
-        gefs_hindcast[i,:,:,:,:,:] = np.array(f.variables[wvar+"_gefs_hindcast"][bid,:,:,:,:][:,indt,:,:,:])
-        gefs_forecast[i,:,:,:,:,:] = np.array(f.variables[wvar+"_gefs_forecast"][bid,:,:,:,:][:,indt,:,:,:])
-        aux = np.array(f.variables[wvar+"_gefs_forecast"][bid,:,:,:,:][:,0,:,:,:])
-        for j in range(0,len(indt)):
-            gefs_forecast_p[i,:,j,:,:,:] = aux
-
-        f.close(); del f, aux
-        print(" read file "+repr(i)+" of "+repr(lstw-1))
-
-    cdate = [datetime.utcfromtimestamp(ts) for ts in ctime]
-
-    gefsdata = {'cdate': cdate,'ctime': ctime,'ftime': ftime, 'stations': stations, 'lft': len(indt), 'ensm': ensm,
-        'latm': latm, 'lonm': lonm, 'indlat': indlat, 'indlon': indlon, 
-        'indlat': indlat, 'indlon': indlon, 'indt': indt,
-        'gefs_hindcast': gefs_hindcast,'gefs_forecast': gefs_forecast,'gefs_forecast_p': gefs_forecast_p}
-
-    return gefsdata
-
 # READ OBSERVATIONS 
 def read_obs(fname,wvar,altselm):
     '''
@@ -140,8 +93,591 @@ def read_obs(fname,wvar,altselm):
 
     return result
 
+# READ DATA and Bias Correction
+def _init_worker(bid, wvar, indt_read, indlat, indlon, latm, lonm, ensm_len,
+                  stations_with_obs, obs_by_station, obs_btime, include_buoy):
+    """Runs once per worker process, stashes shared read-only context in globals
+    so we don't re-pickle/re-send it on every one of the 3800 file tasks."""
+    global _G
+    _G = dict(bid=bid, wvar=wvar, indt_read=indt_read, indlat=indlat, indlon=indlon,
+               latm=latm, lonm=lonm, ensm_len=ensm_len,
+               stations_with_obs=stations_with_obs, obs_by_station=obs_by_station,
+               obs_btime=obs_btime, include_buoy=include_buoy)
 
-# --- Bias correction using altimeter obs ---
+def _read_and_match_one_file(fname):
+    """
+    Runs in a worker process for ONE file:
+    - reads that file's full-grid hindcast (small: ~tens of MB) and center-point forecast
+    - immediately mines it for buoy/altimeter matches against obs (same logic as the
+      old bias_correction inner loop), station by station
+    - returns only small results: center-point series + per-station match rows
+    The full-grid array (hc_full) is never returned or kept — it's discarded when
+    this function returns, so nothing multi-file-sized ever exists at once.
+    """
+    global _G
+    bid = _G['bid']; wvar = _G['wvar']; indt_read = _G['indt_read']
+    indlat = _G['indlat']; indlon = _G['indlon']
+    latm = _G['latm']; lonm = _G['lonm']; ensm_len = _G['ensm_len']
+    stations_with_obs = _G['stations_with_obs']
+    obs_by_station = _G['obs_by_station']; obs_btime = _G['obs_btime']
+    include_buoy = _G['include_buoy']
+
+    f = nc.Dataset(fname)
+    try:
+        ftime_i = np.array(f.variables['time'][indt_read]).astype('double')
+        ctime_i = np.double(f.variables['time'][0])
+        # (nstations, nlead, nens, nlat, nlon) — one file only, small
+        hc_full = np.array(f.variables[wvar + "_gefs_hindcast"][bid, indt_read, :, :, :], dtype='f')
+        fc_center = np.array(f.variables[wvar + "_gefs_forecast"][bid, indt_read, :, indlat, indlon], dtype='f')
+    finally:
+        f.close()
+
+    hc_center = np.array(hc_full[:, :, :, indlat, indlon])  # (nstations, nlead, nens)
+    nlead = hc_full.shape[1]
+
+    # per-station match accumulation for this file only
+    match_results = {}  # i -> (fmodel_rows, fobs_rows)
+
+    for i in stations_with_obs:
+        sobs = obs_by_station[i]
+        fmodel_rows = []
+        fobs_rows = []
+        neighbor_cache = {}  # (indplat, indplon, passed) per altimeter point p — same for every k in this file
+
+        for k in range(nlead):
+            indt = np.where(np.abs(ftime_i[k] - obs_btime) < 1800.)
+            if np.size(indt) > 0:
+                indt = indt[0][0]
+
+                if include_buoy == 'yes' and sobs['buoy'][indt] > 0.:
+                    fmodel_rows.append(hc_full[i, k, :, indlat, indlon])
+                    fobs_rows.append(np.full(ensm_len, sobs['buoy'][indt]))
+
+                if np.any(np.isnan(sobs['alt'][indt, :]) == False):
+                    for p in range(sobs['mlat'].shape[0]):
+                        if sobs['alt'][indt, :][p] > 0.:
+
+                            if p not in neighbor_cache:
+                                indplat = np.where(
+                                    np.abs(latm[i, :] - sobs['mlat'][p]) ==
+                                    np.min(np.abs(latm[i, :] - sobs['mlat'][p]))
+                                )[0][0]
+                                indplon = np.where(
+                                    np.abs(lonm[i, :] - sobs['mlon'][p]) ==
+                                    np.min(np.abs(lonm[i, :] - sobs['mlon'][p]))
+                                )[0][0]
+
+                                stresult = np.round(np.abs(mvalstats.metrics(
+                                    hc_full[i, :, 0, indlat, indlon],
+                                    hc_full[i, :, 0, indplat, indplon]
+                                )[[2, 5, 7]]), 3)
+                                L1, L2, t3_p, t4_p = lmom_ratios(hc_full[i, :, 0, indlat, indlon], nmom=4)
+                                l1_p = L2 / L1
+                                L1, L2, t3_n, t4_n = lmom_ratios(hc_full[i, :, 0, indplat, indplon], nmom=4)
+                                l1_n = L2 / L1
+
+                                passed = (stresult[0] < 0.1 and stresult[1] < 0.1 and stresult[2] > 0.8
+                                          and np.abs(l1_p - l1_n) < 0.05
+                                          and np.abs(t3_p - t3_n) < 0.05
+                                          and np.abs(t4_p - t4_n) < 0.05)
+                                neighbor_cache[p] = (indplat, indplon, passed)
+
+                            indplat, indplon, passed = neighbor_cache[p]
+                            if passed:
+                                fmodel_rows.append(hc_full[i, k, :, indplat, indplon])
+                                fobs_rows.append(np.full(ensm_len, sobs['alt'][indt, :][p]))
+
+        match_results[i] = (fmodel_rows, fobs_rows)
+
+    del hc_full  # explicit — full grid dies here, never leaves this function
+    return ftime_i, ctime_i, hc_center, fc_center, match_results
+
+def read_data_and_bias_correction(wlist, bid, ltime1, ltime2, wvar, obs, spctl, opath,
+                                    include_buoy="no", max_workers=None):
+    '''
+    Fused replacement for read_data() + bias_correction().
+    Streams through files one at a time (in parallel workers), extracting only
+    center-point series and small obs-matched rows. The full-grid hindcast for
+    all files together is NEVER held in memory at once — only one file's grid
+    exists transiently inside each worker. This keeps peak memory tiny and
+    constant regardless of how many years/stations you add later.
+
+    Returns: gdata (metadata + center-point gefs_forecast), gefs_hindcast_bc
+             (center-point, bias-corrected where obs exist).
+    '''
+
+    lstw = int(len(wlist))
+
+    f = nc.Dataset(wlist[0])
+    stations = np.array([f.variables['ID'][i] for i in bid]).astype('str')
+    latm = f.variables['lat'][bid, :]; lonm = f.variables['lon'][bid, :]
+    ensm = f.variables['ensemble_member'][:]
+    indlat = int(np.floor(len(latm[0, :]) / 2))
+    indlon = int(np.floor(len(lonm[0, :]) / 2))
+    auxt = np.array(f.variables['time'][:])
+    axt = np.array(auxt - auxt.min()) / 3600.
+    indt = np.where((axt >= ltime1 * 24) & (axt <= ltime2 * 24))[0]
+    f.close(); del f, auxt, axt
+
+    if indt.size == 0:
+        raise ValueError("indt is empty — check ltime1/ltime2 against the file's time range.")
+
+    if np.all(np.diff(indt) == 1):
+        indt_read = slice(int(indt[0]), int(indt[-1]) + 1)
+    else:
+        indt_read = indt
+
+    nstations = len(bid); nlead = len(indt); ensm_len = len(ensm)
+
+    if max_workers is None:
+        max_workers = len(os.sched_getaffinity(0))
+
+    small_gb = (lstw * nstations * nlead * ensm_len * 4 * 2) / 1e9  # forecast + hindcast center arrays
+    print(f" Peak memory now bounded by per-file grids (~tens of MB each) "
+          f"+ ~{small_gb:.2f} GB of center-point arrays — no more multi-file full-grid array.")
+
+    # Which stations have matching obs, and pre-sliced per-station obs (keeps
+    # worker IPC small — we never send the full obs arrays to every task)
+    stations_with_obs = []
+    obs_by_station = {}
+    for i in range(nstations):
+        if stations[i] in obs['bid']:
+            inds = np.where(stations[i] == obs['bid'])[0][0]
+            stations_with_obs.append(i)
+            obs_by_station[i] = {
+                'buoy': obs['buoy'][inds, :],
+                'alt': obs['alt'][inds, :, :],
+                'mlat': obs['mlat'][inds, :],
+                'mlon': obs['mlon'][inds, :],
+            }
+    obs_btime = obs['btime']
+
+    ctime = np.full(lstw, np.nan, dtype='double')
+    ftime = np.full((lstw, nlead), np.nan, dtype='double')
+    gefs_forecast = np.full((lstw, nstations, nlead, ensm_len), np.nan, dtype='f')
+    hc_center_all = np.full((lstw, nstations, nlead, ensm_len), np.nan, dtype='f')
+
+    all_fmodel = {i: [] for i in stations_with_obs}
+    all_fobs = {i: [] for i in stations_with_obs}
+
+    done_count = 0
+    with ProcessPoolExecutor(
+        max_workers=max_workers,
+        initializer=_init_worker,
+        initargs=(bid, wvar, indt_read, indlat, indlon, latm, lonm, ensm_len,
+                  stations_with_obs, obs_by_station, obs_btime, include_buoy)
+    ) as ex:
+        futures = {ex.submit(_read_and_match_one_file, wlist[i]): i for i in range(lstw)}
+        for fut in as_completed(futures):
+            i = futures[fut]
+            ftime_i, ctime_i, hc_center, fc_center, match_results = fut.result()
+
+            ftime[i, :] = ftime_i
+            ctime[i] = ctime_i
+            gefs_forecast[i, :, :, :] = fc_center
+            hc_center_all[i, :, :, :] = hc_center
+
+            for si, (fmodel_rows, fobs_rows) in match_results.items():
+                if fmodel_rows:
+                    all_fmodel[si].extend(fmodel_rows)
+                    all_fobs[si].extend(fobs_rows)
+
+            del ftime_i, ctime_i, hc_center, fc_center, match_results
+            done_count += 1
+            print(" read+matched file " + repr(done_count) + " of " + repr(lstw) + " (index " + repr(i) + ")")
+
+    cdate = [datetime.utcfromtimestamp(ts) for ts in ctime]
+    gdata = {'cdate': cdate, 'ctime': ctime, 'ftime': ftime, 'stations': stations, 'lft': nlead, 'ensm': ensm,
+        'latm': latm, 'lonm': lonm, 'indlat': indlat, 'indlon': indlon,
+        'indt': indt, 'gefs_forecast': gefs_forecast}
+
+    # ---- Calibration step: same math as the old bias_correction second half,
+    #      just applied to accumulated matches instead of a full-grid array ----
+    pctlarr = np.arange(spctl, 99.9, 0.1)
+    gefs_hindcast_bc = np.copy(hc_center_all)  # uncorrected default for stations without obs
+
+    for i in stations_with_obs:
+        fobs_rows = all_fobs[i]
+        if len(fobs_rows) == 0:
+            continue
+
+        fmodel = np.array(all_fmodel[i])
+        fobs = np.array(fobs_rows)
+
+        fmodel_bc = np.copy(fmodel)
+        for j in range(ensm_len):
+            qmm_slope = 1.; qmm_intercept = 0.
+            if np.size(np.where(fobs[:, j] > 0)) > 200.:
+                qmm_slope, qmm_intercept = qm_train(model=fmodel[:, j], obs=fobs[:, j])
+            elif np.size(np.where(fobs[:, j] > 0)) > 100.:
+                qmm_intercept = np.nanmean(
+                    np.nanpercentile(fobs[:, j], pctlarr) - np.nanpercentile(fmodel[:, j], pctlarr))
+
+            gefs_hindcast_bc[:, i, :, j] = qmcal(model=hc_center_all[:, i, :, j],
+                                                   slope=qmm_slope, intercept=qmm_intercept)
+            fmodel_bc[:, j] = qmcal(model=fmodel[:, j], slope=qmm_slope, intercept=qmm_intercept)
+            del qmm_slope, qmm_intercept
+            print(" QMM bias correction station " + stations[i] + "  member" + repr(j))
+
+        merr = np.zeros((ensm_len, 12), 'f')
+        merr_cal = np.zeros((ensm_len, 12), 'f')
+        for j in range(ensm_len):
+            if np.any(fmodel[:, j] > -999.) == True and np.any(fobs[:, j] > -999.) == True:
+                merr[j, :] = mvalstats.metrics(fmodel[:, j], fobs[:, j], pctlerr='yes')[:]
+                merr_cal[j, :] = mvalstats.metrics(fmodel_bc[:, j], fobs[:, j], pctlerr='yes')[:]
+
+        fig1 = plt.figure(1, figsize=(5, 4.5)); ax = fig1.add_subplot(111)
+        ax.plot(merr[:, 0], 'k'); ax.plot(merr_cal[:, 0], 'r')
+        plt.grid(c='grey', ls=':', alpha=0.5, zorder=1)
+        ax.set_xlabel("Ens Members"); ax.set_ylabel("Bias")
+        plt.tight_layout()
+        plt.savefig(opath + "/Eval_" + wvar + "_" + stations[i] + "_Bias.png",
+                    dpi=200, facecolor='w', edgecolor='w', orientation='portrait',
+                    format='png', transparent=False, bbox_inches='tight', pad_inches=0.1)
+        plt.close(fig1); del fig1, ax
+
+        fig1 = plt.figure(1, figsize=(5, 4.5)); ax = fig1.add_subplot(111)
+        ax.plot(merr[:, 1], 'k'); ax.plot(merr_cal[:, 1], 'r')
+        plt.grid(c='grey', ls=':', alpha=0.5, zorder=1)
+        ax.set_xlabel("Ens Members"); ax.set_ylabel("Bias")
+        plt.tight_layout()
+        plt.savefig(opath + "/Eval_" + wvar + "_" + stations[i] + "_RMSE.png",
+                    dpi=200, facecolor='w', edgecolor='w', orientation='portrait',
+                    format='png', transparent=False, bbox_inches='tight', pad_inches=0.1)
+        plt.close(fig1); del fig1, ax
+
+        fmodel_f = fmodel.flatten(); fmodel_bc_f = fmodel_bc.flatten(); fobs_f = fobs.flatten()
+        mop = ModelObsPlot(model=[fmodel_f, fmodel_bc_f], obs=fobs_f, mlabels=["GEFSv12", "GEFSv12_BC"],
+                            ftag=opath + "/Eval_" + stations[i] + "_", vaxisname=wvar)
+        mop.qqplot(); mop.scatterplot(); mop.taylordiagram()
+
+        del fmodel, fobs, fmodel_bc, fmodel_f, fmodel_bc_f, fobs_f, merr, merr_cal
+
+    return gdata, gefs_hindcast_bc
+
+def data_assimilation(gefs_hindcast_bc, gdata, obs, spctl, wvar, opath, include_buoy="yes"):
+    '''
+    Data assimilation of GEFS hindcast data. Using altimeter and/or buoy data.
+    First test version, just replacing model by obs.
+
+    gefs_hindcast_bc: center-point array (lstw, nstations, nlead, nens),
+    as returned by the updated bias_correction().
+    '''
+
+    gefs_hindcast = np.nanmean(gefs_hindcast_bc, axis=3)
+    gefs_hindcast_da = np.copy(gefs_hindcast)
+
+    bda = 0; sda = 0
+    for i in range(0, len(gdata['stations'])):
+        if gdata['stations'][i] in obs['bid']:
+            inds = np.where(gdata['stations'][i] == obs['bid'])[0][0]
+            for j in range(0, gdata['ftime'].shape[0]):
+                for k in range(0, gdata['ftime'].shape[1]):
+
+                    indt = np.where(np.abs(gdata['ftime'][j, k] - obs['btime']) < 1800.)
+                    if np.size(indt) > 0:
+                        indt = indt[0][0]
+
+                        if include_buoy == 'yes' and np.nanmean(obs['buoy'][inds, indt]) > 0.1:
+                            gefs_hindcast_da[j, i, k] = np.nanmean(obs['buoy'][inds, indt])
+                            bda = bda + 1
+
+                        if np.nanmean(obs['alt'][inds, indt, 8]) > 0.1:
+                            gefs_hindcast_da[j, i, k] = np.nanmean(obs['alt'][inds, indt, 8])
+                            sda = sda + 1
+
+    print(" Total of " + repr(bda) + " buoy records assimilated")
+    print(" Total of " + repr(sda) + " altimeter records assimilated")
+
+    return gefs_hindcast_da, bda, sda
+
+# ---- Shared calibration step, used by both the center-point and windowed
+#      read+bias-correction functions below, so the QMM logic lives in one
+#      place only. ----
+def _calibrate_stations(stations, ensm_len, stations_with_obs, all_fmodel, all_fobs,
+                         hc_center_all, spctl, wvar, opath):
+    """
+    Applies quantile-mapping calibration per station/member, using accumulated
+    obs-matched rows, and produces the diagnostic plots. Returns the
+    bias-corrected center-point hindcast array.
+    """
+    pctlarr = np.arange(spctl, 99.9, 0.1)
+    gefs_hindcast_bc = np.copy(hc_center_all)
+
+    for i in stations_with_obs:
+        fobs_rows = all_fobs[i]
+        if len(fobs_rows) == 0:
+            continue
+
+        fmodel = np.array(all_fmodel[i])
+        fobs = np.array(fobs_rows)
+
+        fmodel_bc = np.copy(fmodel)
+        for j in range(ensm_len):
+            qmm_slope = 1.; qmm_intercept = 0.
+            if np.size(np.where(fobs[:, j] > 0)) > 200.:
+                qmm_slope, qmm_intercept = qm_train(model=fmodel[:, j], obs=fobs[:, j])
+            elif np.size(np.where(fobs[:, j] > 0)) > 100.:
+                qmm_intercept = np.nanmean(
+                    np.nanpercentile(fobs[:, j], pctlarr) - np.nanpercentile(fmodel[:, j], pctlarr))
+
+            gefs_hindcast_bc[:, i, :, j] = qmcal(model=hc_center_all[:, i, :, j],
+                                                   slope=qmm_slope, intercept=qmm_intercept)
+            fmodel_bc[:, j] = qmcal(model=fmodel[:, j], slope=qmm_slope, intercept=qmm_intercept)
+            del qmm_slope, qmm_intercept
+            print(" QMM bias correction station " + stations[i] + "  member" + repr(j))
+
+        merr = np.zeros((ensm_len, 12), 'f')
+        merr_cal = np.zeros((ensm_len, 12), 'f')
+        for j in range(ensm_len):
+            if np.any(fmodel[:, j] > -999.) == True and np.any(fobs[:, j] > -999.) == True:
+                merr[j, :] = mvalstats.metrics(fmodel[:, j], fobs[:, j], pctlerr='yes')[:]
+                merr_cal[j, :] = mvalstats.metrics(fmodel_bc[:, j], fobs[:, j], pctlerr='yes')[:]
+
+        fig1 = plt.figure(1, figsize=(5, 4.5)); ax = fig1.add_subplot(111)
+        ax.plot(merr[:, 0], 'k'); ax.plot(merr_cal[:, 0], 'r')
+        plt.grid(c='grey', ls=':', alpha=0.5, zorder=1)
+        ax.set_xlabel("Ens Members"); ax.set_ylabel("Bias")
+        plt.tight_layout()
+        plt.savefig(opath + "/Eval_" + wvar + "_" + stations[i] + "_Bias.png",
+                    dpi=200, facecolor='w', edgecolor='w', orientation='portrait',
+                    format='png', transparent=False, bbox_inches='tight', pad_inches=0.1)
+        plt.close(fig1); del fig1, ax
+
+        fig1 = plt.figure(1, figsize=(5, 4.5)); ax = fig1.add_subplot(111)
+        ax.plot(merr[:, 1], 'k'); ax.plot(merr_cal[:, 1], 'r')
+        plt.grid(c='grey', ls=':', alpha=0.5, zorder=1)
+        ax.set_xlabel("Ens Members"); ax.set_ylabel("Bias")
+        plt.tight_layout()
+        plt.savefig(opath + "/Eval_" + wvar + "_" + stations[i] + "_RMSE.png",
+                    dpi=200, facecolor='w', edgecolor='w', orientation='portrait',
+                    format='png', transparent=False, bbox_inches='tight', pad_inches=0.1)
+        plt.close(fig1); del fig1, ax
+
+        fmodel_f = fmodel.flatten(); fmodel_bc_f = fmodel_bc.flatten(); fobs_f = fobs.flatten()
+        mop = ModelObsPlot(model=[fmodel_f, fmodel_bc_f], obs=fobs_f, mlabels=["GEFSv12", "GEFSv12_BC"],
+                            ftag=opath + "/Eval_" + stations[i] + "_", vaxisname=wvar)
+        mop.qqplot(); mop.scatterplot(); mop.taylordiagram()
+
+        del fmodel, fobs, fmodel_bc, fmodel_f, fmodel_bc_f, fobs_f, merr, merr_cal
+
+    return gefs_hindcast_bc
+
+# ---- WINDOWED variant: reads a small spatial window of forecast around each
+#      station (for probforecast's fuzzy/neighborhood approach), instead of
+#      just the center point. Used by ensemble_lag_prob.py.
+#      Named distinctly from the center-point versions above so
+#      ensemble_lag_det.py's functions and call sites are untouched. ----
+def _init_worker_window(bid, wvar, indt_read, indlat, indlon, latm, lonm, ensm_len,
+                         stations_with_obs, obs_by_station, obs_btime, include_buoy, hw):
+    """Runs once per worker process, stashes shared read-only context in globals."""
+    global _GW
+    _GW = dict(bid=bid, wvar=wvar, indt_read=indt_read, indlat=indlat, indlon=indlon,
+               latm=latm, lonm=lonm, ensm_len=ensm_len,
+               stations_with_obs=stations_with_obs, obs_by_station=obs_by_station,
+               obs_btime=obs_btime, include_buoy=include_buoy, hw=hw)
+
+def _read_and_match_one_file_window(fname):
+    """
+    Runs in a worker process for ONE file. Same matching logic as
+    _read_and_match_one_file, except the forecast is read as a small spatial
+    window (hw grid points each side of center) instead of a single point —
+    needed by probforecast(), which needs a spatial neighborhood.
+    """
+    global _GW
+    bid = _GW['bid']; wvar = _GW['wvar']; indt_read = _GW['indt_read']
+    indlat = _GW['indlat']; indlon = _GW['indlon']
+    latm = _GW['latm']; lonm = _GW['lonm']; ensm_len = _GW['ensm_len']
+    stations_with_obs = _GW['stations_with_obs']
+    obs_by_station = _GW['obs_by_station']; obs_btime = _GW['obs_btime']
+    include_buoy = _GW['include_buoy']; hw = _GW['hw']
+
+    f = nc.Dataset(fname)
+    try:
+        ftime_i = np.array(f.variables['time'][indt_read]).astype('double')
+        ctime_i = np.double(f.variables['time'][0])
+        # Full grid per file — small (one file), needed for altimeter neighbor search
+        hc_full = np.array(f.variables[wvar + "_gefs_hindcast"][bid, indt_read, :, :, :], dtype='f')
+        # Spatial window around center — only what probforecast will ever use
+        fc_window = np.array(f.variables[wvar + "_gefs_forecast"][
+            bid, indt_read, :, indlat - hw:indlat + hw + 1, indlon - hw:indlon + hw + 1], dtype='f')
+    finally:
+        f.close()
+
+    hc_center = np.array(hc_full[:, :, :, indlat, indlon])  # (nstations, nlead, nens)
+    nlead = hc_full.shape[1]
+
+    match_results = {}
+
+    for i in stations_with_obs:
+        sobs = obs_by_station[i]
+        fmodel_rows = []
+        fobs_rows = []
+        neighbor_cache = {}
+
+        for k in range(nlead):
+            indt = np.where(np.abs(ftime_i[k] - obs_btime) < 1800.)
+            if np.size(indt) > 0:
+                indt = indt[0][0]
+
+                if include_buoy == 'yes' and sobs['buoy'][indt] > 0.:
+                    fmodel_rows.append(hc_full[i, k, :, indlat, indlon])
+                    fobs_rows.append(np.full(ensm_len, sobs['buoy'][indt]))
+
+                if np.any(np.isnan(sobs['alt'][indt, :]) == False):
+                    for p in range(sobs['mlat'].shape[0]):
+                        if sobs['alt'][indt, :][p] > 0.:
+
+                            if p not in neighbor_cache:
+                                indplat = np.where(
+                                    np.abs(latm[i, :] - sobs['mlat'][p]) ==
+                                    np.min(np.abs(latm[i, :] - sobs['mlat'][p]))
+                                )[0][0]
+                                indplon = np.where(
+                                    np.abs(lonm[i, :] - sobs['mlon'][p]) ==
+                                    np.min(np.abs(lonm[i, :] - sobs['mlon'][p]))
+                                )[0][0]
+
+                                stresult = np.round(np.abs(mvalstats.metrics(
+                                    hc_full[i, :, 0, indlat, indlon],
+                                    hc_full[i, :, 0, indplat, indplon]
+                                )[[2, 5, 7]]), 3)
+                                L1, L2, t3_p, t4_p = lmom_ratios(hc_full[i, :, 0, indlat, indlon], nmom=4)
+                                l1_p = L2 / L1
+                                L1, L2, t3_n, t4_n = lmom_ratios(hc_full[i, :, 0, indplat, indplon], nmom=4)
+                                l1_n = L2 / L1
+
+                                passed = (stresult[0] < 0.1 and stresult[1] < 0.1 and stresult[2] > 0.8
+                                          and np.abs(l1_p - l1_n) < 0.05
+                                          and np.abs(t3_p - t3_n) < 0.05
+                                          and np.abs(t4_p - t4_n) < 0.05)
+                                neighbor_cache[p] = (indplat, indplon, passed)
+
+                            indplat, indplon, passed = neighbor_cache[p]
+                            if passed:
+                                fmodel_rows.append(hc_full[i, k, :, indplat, indplon])
+                                fobs_rows.append(np.full(ensm_len, sobs['alt'][indt, :][p]))
+
+        match_results[i] = (fmodel_rows, fobs_rows)
+
+    del hc_full
+    return ftime_i, ctime_i, hc_center, fc_window, match_results
+
+def read_data_and_bias_correction_window(wlist, bid, ltime1, ltime2, wvar, obs, spctl, opath,
+                                           spws, include_buoy="no", max_workers=None):
+    '''
+    Windowed sibling of read_data_and_bias_correction(). Streams through files
+    one at a time (in parallel workers), same as the center-point version, but
+    gdata['gefs_forecast'] carries a small spatial window ((2*gspws+1) x
+    (2*gspws+1)) around each station's center point, needed by probforecast()
+    for probabilistic/fuzzy forecasts. Used by ensemble_lag_prob.py.
+
+    gspws is computed here (once, from first-file metadata) before the main
+    read loop, so only the window actually needed is ever read or stored —
+    never the full station grid.
+
+    Returns: gdata (metadata + windowed gefs_forecast, plus gdata['gspws']),
+             gefs_hindcast_bc (center-point, bias-corrected where obs exist).
+    '''
+
+    lstw = int(len(wlist))
+
+    f = nc.Dataset(wlist[0])
+    stations = np.array([f.variables['ID'][i] for i in bid]).astype('str')
+    latm = f.variables['lat'][bid, :]; lonm = f.variables['lon'][bid, :]
+    ensm = f.variables['ensemble_member'][:]
+    indlat = int(np.floor(len(latm[0, :]) / 2))
+    indlon = int(np.floor(len(lonm[0, :]) / 2))
+    auxt = np.array(f.variables['time'][:])
+    axt = np.array(auxt - auxt.min()) / 3600.
+    indt = np.where((axt >= ltime1 * 24) & (axt <= ltime2 * 24))[0]
+    f.close(); del f, auxt, axt
+
+    if indt.size == 0:
+        raise ValueError("indt is empty — check ltime1/ltime2 against the file's time range.")
+
+    if np.all(np.diff(indt) == 1):
+        indt_read = slice(int(indt[0]), int(indt[-1]) + 1)
+    else:
+        indt_read = indt
+
+    nstations = len(bid); nlead = len(indt); ensm_len = len(ensm)
+
+    gspws = int(np.floor(spws / np.diff(latm).mean()) / 2)
+    max_hw = min(indlat, latm.shape[1] - 1 - indlat, indlon, lonm.shape[1] - 1 - indlon)
+    if gspws > max_hw:
+        print(f" Requested spatial window (gspws={gspws}) exceeds available grid "
+              f"half-width ({max_hw}); clipping to {max_hw}.")
+        gspws = max_hw
+    hw = gspws
+    winlat = 2 * hw + 1
+
+    if max_workers is None:
+        max_workers = len(os.sched_getaffinity(0))
+
+    fc_shape = (lstw, nstations, nlead, ensm_len, winlat, winlat)
+    fc_gb = (np.prod(fc_shape) * 4) / 1e9
+    hc_center_gb = (lstw * nstations * nlead * ensm_len * 4) / 1e9
+    print(f" gspws={gspws} (window {winlat}x{winlat}) — "
+          f"forecast array will use ~{fc_gb:.2f} GB, hindcast-center array ~{hc_center_gb:.2f} GB")
+
+    stations_with_obs = []
+    obs_by_station = {}
+    for i in range(nstations):
+        if stations[i] in obs['bid']:
+            inds = np.where(stations[i] == obs['bid'])[0][0]
+            stations_with_obs.append(i)
+            obs_by_station[i] = {
+                'buoy': obs['buoy'][inds, :],
+                'alt': obs['alt'][inds, :, :],
+                'mlat': obs['mlat'][inds, :],
+                'mlon': obs['mlon'][inds, :],
+            }
+    obs_btime = obs['btime']
+
+    ctime = np.full(lstw, np.nan, dtype='double')
+    ftime = np.full((lstw, nlead), np.nan, dtype='double')
+    gefs_forecast = np.full(fc_shape, np.nan, dtype='f')
+    hc_center_all = np.full((lstw, nstations, nlead, ensm_len), np.nan, dtype='f')
+
+    all_fmodel = {i: [] for i in stations_with_obs}
+    all_fobs = {i: [] for i in stations_with_obs}
+
+    done_count = 0
+    with ProcessPoolExecutor(
+        max_workers=max_workers,
+        initializer=_init_worker_window,
+        initargs=(bid, wvar, indt_read, indlat, indlon, latm, lonm, ensm_len,
+                  stations_with_obs, obs_by_station, obs_btime, include_buoy, hw)
+    ) as ex:
+        futures = {ex.submit(_read_and_match_one_file_window, wlist[i]): i for i in range(lstw)}
+        for fut in as_completed(futures):
+            i = futures[fut]
+            ftime_i, ctime_i, hc_center, fc_window, match_results = fut.result()
+
+            ftime[i, :] = ftime_i
+            ctime[i] = ctime_i
+            gefs_forecast[i, :, :, :, :, :] = fc_window
+            hc_center_all[i, :, :, :] = hc_center
+
+            for si, (fmodel_rows, fobs_rows) in match_results.items():
+                if fmodel_rows:
+                    all_fmodel[si].extend(fmodel_rows)
+                    all_fobs[si].extend(fobs_rows)
+
+            del ftime_i, ctime_i, hc_center, fc_window, match_results
+            done_count += 1
+            print(" read+matched file " + repr(done_count) + " of " + repr(lstw) + " (index " + repr(i) + ")")
+
+    cdate = [datetime.utcfromtimestamp(ts) for ts in ctime]
+    gdata = {'cdate': cdate, 'ctime': ctime, 'ftime': ftime, 'stations': stations, 'lft': nlead, 'ensm': ensm,
+        'latm': latm, 'lonm': lonm, 'indlat': indlat, 'indlon': indlon,
+        'indt': indt, 'gspws': gspws, 'gefs_forecast': gefs_forecast}
+
+    gefs_hindcast_bc = _calibrate_stations(stations, ensm_len, stations_with_obs,
+                                             all_fmodel, all_fobs, hc_center_all, spctl, wvar, opath)
+
+    return gdata, gefs_hindcast_bc
 
 # Quantile Mapping bias-correction
 def qm_train(model=None,obs=None,prob=None):
@@ -195,157 +731,6 @@ def qmcal(model=None,slope=1.,intercept=0.,pprint='no'):
 
     return np.array(model_cal).astype('float')
 
-
-def bias_correction(gdata,obs,spctl,wvar,opath,include_buoy="no"):
-    '''
-    Bias correction of GEFS hindcast data. 
-    Using altimeter and/or buoy data.
-    '''
-
-    gefs_hindcast = gdata['gefs_hindcast']
-
-    gefs_hindcast_bc = np.copy(gefs_hindcast)
-    pctlarr = np.arange(spctl,99.9,0.1)
-
-    for i in range(0,len(gdata['stations'])):
-        if gdata['stations'][i] in obs['bid']:
-            inds=np.where(gdata['stations'][i]==obs['bid'])[0][0]
-            fmodel=np.array([]); fobs=np.array([])
-            c=0
-            for j in range(0,gdata['ftime'].shape[0]):
-                for k in range(0,gdata['ftime'].shape[1]):
-                    indt = np.where( np.abs(gdata['ftime'][j,k]-obs['btime'])<1800. )
-                    if np.size(indt)>0:
-                        indt=indt[0][0]
-
-                        # Buoy data module
-                        if include_buoy=='yes' and obs['buoy'][inds,indt] > 0. :
-                            if c==0:
-                                fmodel=np.array([gefs_hindcast[j,i,k,:,gdata['indlat'],gdata['indlon']]])
-                                fobs=np.array([np.full( len(gdata['ensm']),obs['buoy'][inds,indt])])
-                            else:
-                                fmodel=np.append(fmodel, np.array([gefs_hindcast[j,i,k,:,gdata['indlat'],gdata['indlon']]]),axis=0)
-                                fobs=np.append(fobs, np.array([np.full( len(gdata['ensm']),obs['buoy'][inds,indt])]),axis=0)
-
-                            c=c+1
-
-                        # Altimeter data module
-                        if np.any( np.isnan(obs['alt'][inds,:,:][indt,:]) == False ):
-
-                            for p in range(0,obs['mlat'].shape[1]):
-                                if obs['alt'][inds,:,:][indt,:][p] > 0. :
-
-                                    indplat=np.where( np.abs(gdata['latm'][i,:]-obs['mlat'][inds,p]) == np.min( np.abs(gdata['latm'][i,:]-obs['mlat'][inds,p]) ) )[0][0]
-                                    indplon=np.where( np.abs(gdata['lonm'][i,:]-obs['mlon'][inds,p]) == np.min( np.abs(gdata['lonm'][i,:]-obs['mlon'][inds,p]) ) )[0][0]
-
-                                    # statistical comparison between neighboring points
-                                    stresult = np.round(np.abs(mvalstats.metrics(gefs_hindcast[j,i,:,0,gdata['indlat'],gdata['indlon']],gefs_hindcast[j,i,:,0,indplat,indplon])[[2,5,7]]),3)
-                                    L1, L2, t3_p, t4_p = lmom_ratios(gefs_hindcast[j,i,:,0,gdata['indlat'],gdata['indlon']], nmom=4); l1_p = L2 / L1
-                                    L1, L2, t3_n, t4_n = lmom_ratios(gefs_hindcast[j,i,:,0,indplat,indplon], nmom=4); l1_n = L2 / L1
-
-                                    if stresult[0]<0.1 and stresult[1]<0.1 and stresult[2]>0.8 and np.abs(l1_p-l1_n)<0.05 and np.abs(t3_p-t3_n)<0.05 and np.abs(t4_p-t4_n)<0.05:
-                                    # if stresult[0]<0.15 and stresult[1]<0.15 and stresult[2]>0.75 and np.abs(l1_p-l1_n)<0.07 and np.abs(t3_p-t3_n)<0.07 and np.abs(t4_p-t4_n)<0.07:
-
-                                        if c==0:
-                                            fmodel=np.array([gefs_hindcast[j,i,k,:,indplat,indplon]])
-                                            fobs=np.array([np.full( len(gdata['ensm']),obs['alt'][inds,:,:][indt,:][p])])
-                                        else:
-                                            fmodel=np.append(fmodel, np.array([gefs_hindcast[j,i,k,:,indplat,indplon]]),axis=0)
-                                            fobs=np.append(fobs, np.array([np.full( len(gdata['ensm']),obs['alt'][inds,:,:][indt,:][p])]),axis=0)
-
-                                        del indplat,indplon
-                                        c=c+1
-                                        # print(" Ok, "+gdata['stations'][i]+". "+repr(j)+", "+repr(k))
-
-                                    else:
-                                        print(" Neighbour point is statistically different, "+gdata['stations'][i]+". "+repr(j)+", "+repr(k))
-
-            if np.size(fobs)>0.:
-                fmodel_bc = np.copy(fmodel)
-                for j in range(0,len(gdata['ensm'])):
-                    qmm_slope = 1. ; qmm_intercept = 0.
-                    if np.size(np.where(fobs[:,j]>0))>200.:
-                        qmm_slope,qmm_intercept = qm_train(model=fmodel[:,j],obs=fobs[:,j])
-                    elif np.size(np.where(fobs[:,j]>0))>100.:
-                        # does not change the slope
-                        qmm_intercept = np.nanmean( np.nanpercentile(fobs[:,j],pctlarr) - np.nanpercentile(fmodel[:,j],pctlarr) )
-
-                    gefs_hindcast_bc[:,i,:,:,:,:][:,:,j,:,:] = qmcal(model=gefs_hindcast[:,i,:,:,:,:][:,:,j,:,:],slope=qmm_slope,intercept=qmm_intercept)
-                    fmodel_bc[:,j] = qmcal(model=fmodel[:,j],slope=qmm_slope,intercept=qmm_intercept)
-                    del qmm_slope,qmm_intercept
-                    print(" QMM bias correction station "+gdata['stations'][i]+"  member"+repr(j))
-
-                # Quick assessment against obs
-                merr = np.zeros((len(gdata['ensm']),12),'f')
-                merr_cal = np.zeros((len(gdata['ensm']),12),'f')
-                for j in range(0,len(gdata['ensm'])):
-                    if np.any(fmodel[:,j]>-999.)==True and np.any(fobs[:,j]>-999.)==True :
-                        merr[j,:] = mvalstats.metrics(fmodel[:,j],fobs[:,j],pctlerr='yes')[:]
-                        merr_cal[j,:] = mvalstats.metrics(fmodel_bc[:,j],fobs[:,j],pctlerr='yes')[:]
-
-                fig1 = plt.figure(1,figsize=(5,4.5)); ax = fig1.add_subplot(111)
-                ax.plot(merr[:,0],'k'); ax.plot(merr_cal[:,0],'r')
-                plt.grid(c='grey', ls=':', alpha=0.5,zorder=1)
-                ax.set_xlabel("Ens Members"); ax.set_ylabel("Bias")
-                plt.tight_layout()
-                plt.savefig(opath+"/Eval_"+wvar+"_"+gdata['stations'][i]+"_Bias.png", dpi=200, facecolor='w', edgecolor='w',orientation='portrait', format='png',transparent=False, bbox_inches='tight', pad_inches=0.1)
-                plt.close(fig1); del fig1, ax
-
-                fig1 = plt.figure(1,figsize=(5,4.5)); ax = fig1.add_subplot(111)
-                ax.plot(merr[:,1],'k'); ax.plot(merr_cal[:,1],'r')
-                plt.grid(c='grey', ls=':', alpha=0.5,zorder=1)
-                ax.set_xlabel("Ens Members"); ax.set_ylabel("Bias")
-                plt.tight_layout()
-                plt.savefig(opath+"/Eval_"+wvar+"_"+gdata['stations'][i]+"_RMSE.png", dpi=200, facecolor='w', edgecolor='w',orientation='portrait', format='png',transparent=False, bbox_inches='tight', pad_inches=0.1)
-                plt.close(fig1); del fig1, ax
-
-                fmodel = fmodel.flatten()
-                fmodel_bc = fmodel_bc.flatten()
-                fobs = fobs.flatten()
-
-                mop=ModelObsPlot(model=[fmodel,fmodel_bc],obs=fobs,mlabels=["GEFSv12","GEFSv12_BC"],ftag=opath+"/Eval_"+gdata['stations'][i]+"_",vaxisname=wvar)
-                mop.qqplot(); mop.scatterplot(); mop.taylordiagram()
-
-    return gefs_hindcast_bc
-
-
-def data_assimilation(gefs_hindcast_bc,gdata,obs,spctl,wvar,opath,include_buoy="yes"):
-    '''
-    Data assimilation of GEFS hindcast data. 
-    Using altimeter and/or buoy data.
-    First test version, just replacing model by obs.
-    '''
-
-    gefs_hindcast = np.nanmean(gefs_hindcast_bc[:,:,:,:,gdata['indlat'],gdata['indlon']],axis=3)
-    gefs_hindcast_da = np.copy(gefs_hindcast)
-
-    bda=0; sda=0
-    for i in range(0,len(gdata['stations'])):
-        if gdata['stations'][i] in obs['bid']:
-            inds=np.where(gdata['stations'][i]==obs['bid'])[0][0]
-            for j in range(0,gdata['ftime'].shape[0]):
-                for k in range(0,gdata['ftime'].shape[1]):
-
-                    indt = np.where( np.abs(gdata['ftime'][j,k]-obs['btime'])<1800. )
-                    if np.size(indt)>0:
-                        indt=indt[0][0]
-
-                        # Buoy data module
-                        if include_buoy=='yes' and np.nanmean(obs['buoy'][inds,indt]) > 0.1 :
-                            gefs_hindcast_da[j,i,k] = np.nanmean(obs['buoy'][inds,indt])
-                            bda=bda+1
-
-                        # Altimeter data module
-                        if np.nanmean(obs['alt'][inds,indt,8]) > 0.1 :
-                            gefs_hindcast_da[j,i,k] = np.nanmean(obs['alt'][inds,indt,8])
-                            sda=sda+1
-
-    print(" Total of "+repr(bda)+" buoy records assimilated")
-    print(" Total of "+repr(sda)+" altimeter records assimilated")
-
-    return gefs_hindcast_da, bda, sda
-
-
 # ---- STATISTICAL MODELLING -----
 
 # Function to check np.sort using multidimensional array
@@ -372,7 +757,6 @@ def tsort(model):
 
     return fmodel
 
-
 def nmaxsel(wdata,nmax):
 
     lstw = int(wdata.shape[0])
@@ -389,7 +773,6 @@ def nmaxsel(wdata,nmax):
         del ind
 
     return wdata_tmax
-
 
 def probforecast(nmax,gspws,spctl,mod_forecast,qlev):
 
@@ -419,7 +802,6 @@ def probforecast(nmax,gspws,spctl,mod_forecast,qlev):
             fmod_result = np.append(fmod_result,np.array([fmod]),axis=0)
 
     return prob_forecast, fmod_result
-
 
 def prob_validation(nmax,spws,gspws,spctl,prob_u10_gefs_forecast,fmod_result_u10,prob_hs_gefs_forecast,fmod_result_hs,u10_obs_tmax,hs_obs_tmax,qlev_wnd,qlev_hs,plevels,ftag):
 
@@ -530,7 +912,6 @@ def prob_validation(nmax,spws,gspws,spctl,prob_u10_gefs_forecast,fmod_result_u10
 
     print(" - Done Optmz_nmax"+str(int(nmax))+"_spws"+str(int(spws*100)).zfill(3)+"_spctl"+str(int(spctl)))
 
-
 # Binary Categorical array
 def probforecast_binary(prob_forcast,qlev,plevels):
 
@@ -547,7 +928,6 @@ def probforecast_binary(prob_forcast,qlev,plevels):
                     fprob_forecast[i,j,k] = int(0)
 
     return fprob_forecast
-
 
 def categorical_bin_eval(forecasted,obs,threshold):
 
@@ -608,7 +988,6 @@ def brier_score(prob_forecast,obs,threshold):
 
     return float(briers)
 
-
 def crps(fmod,obs):
 
     # CRPS
@@ -631,7 +1010,6 @@ def crps(fmod,obs):
 
     return np.array(crps).astype('float'), float(fcrps_mean)
     del crps, fcrps_mean
-
 
 def roc_plot(true_binary,predicted_probabilities,ftag):
 
@@ -658,7 +1036,6 @@ def roc_plot(true_binary,predicted_probabilities,ftag):
         plt.close(fig1)
 
     return float(roc_auc)
-
 
 def roc_plot2(true_binary,predicted_probabilities,mlabels,plevels,ftag):
 
@@ -709,7 +1086,6 @@ def roc_plot2(true_binary,predicted_probabilities,mlabels,plevels,ftag):
     plt.close(fig1)
 
     return np.array(froc_auc).astype('float')
-
 
 def reliability_curve(true_binary,predicted_probabilities,cfreq,mlabels,nbins,pmax,ftag):
 

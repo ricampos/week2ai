@@ -1,4 +1,5 @@
 #!/bin/bash
+
 set -e
 
 # --- Input argument: delay in days (0 = today, 1 = yesterday, ...) ---

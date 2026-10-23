@@ -1,5 +1,13 @@
 #!/bin/bash
+
 set -e
+
+# --- Input argument: delay in days (0 = today, 1 = yesterday, ...) ---
+DELAY_DAYS="${1:-0}"
+if ! [[ "${DELAY_DAYS}" =~ ^[0-9]+$ ]]; then
+  echo "Usage: $0 [delay_days]   (non-negative integer; default 0)"
+  exit 1
+fi
 
 # --- Configuration ---
 REPO_DIR="/home/Ricardo.Campos/github/week2ai/wp/week2ai"
@@ -7,17 +15,25 @@ BASE_DIR="/scratch4/AOML/aoml-phod/Ricardo.Campos/week2_multimodel/results"
 VAL_BASE_DIR="/scratch4/AOML/aoml-phod/Ricardo.Campos/week2_sval/results"
 
 CYCLE="00"
-# TODAY=$(date -u -d "yesterday" +%Y%m%d)
-TODAY=$(date -u +%Y%m%d)
+TODAY=$(date -u -d "${DELAY_DAYS} days ago" +%Y%m%d)
 TARGET_DIR="${BASE_DIR}/${TODAY}${CYCLE}"
 
+# Validation cycle is shifted by the same delay
 VAL_LAG_DAYS=15
-VAL_CYCLE="$(date -u -d "${VAL_LAG_DAYS} days ago" +%Y%m%d)${CYCLE}"
+VAL_CYCLE="$(date -u -d "$((VAL_LAG_DAYS + DELAY_DAYS)) days ago" +%Y%m%d)${CYCLE}"
 VAL_TARGET_DIR="${VAL_BASE_DIR}/${VAL_CYCLE}"
 
 MAX_RETRIES=4          # Total attempts (Initial attempt + 3 retries, 1 hour apart)
 SLEEP_DURATION=3600
 
+# With a delay, the results already exist, so waiting an hour between checks is pointless
+if [ "${DELAY_DAYS}" -gt 0 ]; then
+  MAX_RETRIES=1
+fi
+
+echo "Delay: ${DELAY_DAYS} day(s) -> forecast cycle ${TODAY}${CYCLE}, validation cycle ${VAL_CYCLE}"
+
+# ---------------
 # List of all expected Hs figures (12 total)
 EXPECTED_HS=(
   "ProbMap_Hs_4.0_fcst07to14_GEFS_MAIN.png"

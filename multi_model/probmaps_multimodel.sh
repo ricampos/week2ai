@@ -81,7 +81,7 @@ PYCYAML="$3"
 MAX_TRIES=144
 SLEEP_SECS=300
 MIN_SIZE_GEFS=10000000      # same as probmaps_gefs.sh
-MIN_SIZE_EC_WAVE=300000000  # same as probmaps_ecmwf.sh
+MIN_SIZE_EC_WAVE=200000000  # same as probmaps_ecmwf.sh
 MIN_SIZE_EC_WIND=1000000    # probmaps_ecmwf.sh only checks the wave file: raise to the size of a complete wind file
 MIN_SIZE_NC=1000000         # EnvCanada (not used operationally here)
 

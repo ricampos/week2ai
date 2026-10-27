@@ -49,7 +49,7 @@ echo " "
 # If not, it waits for 5 min and then try again (max 12 hours)
 FSIZE=0
 TRIES=1
-while [ "$FSIZE" -lt 300000000 ] && [ "$TRIES" -le 144 ]; do
+while [ "$FSIZE" -lt 200000000 ] && [ "$TRIES" -le 144 ]; do
   # wait 5 minutes until next try
   if [ ${TRIES} -gt 5 ]; then
     sleep 300
@@ -69,7 +69,7 @@ while [ "$FSIZE" -lt 300000000 ] && [ "$TRIES" -le 144 ]; do
   TRIES=`expr $TRIES + 1`
 done
 
-if [ "$FSIZE" -lt 300000000 ]; then
+if [ "$FSIZE" -lt 200000000 ]; then
   echo " "
   echo " WARNING: gave up after ${TRIES} tries (~12h) - ECMWF file never reached expected size."
   echo " Proceeding anyway, but downstream Python processing may fail or use incomplete data."
